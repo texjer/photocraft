@@ -66,6 +66,7 @@ pub fn free_press(ctx: &egui::Context, canvas: egui::Rect) -> Option<egui::Pos2>
 pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
     let dialogs = app.ui.dialogs.clone();
     let mut shown = Vec::new();
+    let top = dialogs.last().map(|d| d.id);
     for d in dialogs {
         let lang = if crate::prefs_ui::is_preferences(&d.fields) {
             crate::i18n::Lang::from_pref(d.fields.get("values").and_then(|v| v.pointer("/interface/language")).and_then(Value::as_str).unwrap_or("auto"))
@@ -93,6 +94,8 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
         if color_picker {
             modal = modal.frame(egui::Frame::popup(&ctx.global_style()).inner_margin(16));
         }
+        // Tab / ⇧Tab walk the topmost dialog's text fields, not every widget (field_tab.rs).
+        let tab = if top == Some(d.id) && !egui::Popup::is_any_open(ctx) { crate::field_tab::take_step(ctx) } else { 0 };
         // Photoshop doesn't dim the window behind dialogs: previews must be judged at true contrast.
         let modal = modal.show(ctx, |ui| {
             sizing = ui.is_sizing_pass();
@@ -132,6 +135,7 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
             ui.add_space(4.0);
             crate::widgets::hairline(ui);
             ui.add_space(8.0);
+            crate::field_tab::begin(ui.ctx());
             match d.kind {
                 DialogKind::NewDocument => crate::new_doc_ui::body(app, ui, &mut fields),
                 DialogKind::About if fields.get("systemInfo").and_then(Value::as_bool) == Some(true) => {
@@ -204,6 +208,7 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
                     ui.label(fields.get("message").and_then(Value::as_str).unwrap_or("Error"));
                 }
             }
+            crate::field_tab::end(ui.ctx(), tab);
             if crate::color_picker_ui::owns(&fields) {
                 if outcome.is_none() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     outcome = Some(true);
