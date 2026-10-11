@@ -449,3 +449,27 @@ fn drift_that_varies_across_the_image_leaves_no_seam() {
     let worst = (0..n).filter(|&i| inside(i)).map(|i| (px[i * 4] - 0.5).abs()).fold(0.0f32, f32::max);
     assert!(worst < 0.02, "worst {worst}");
 }
+
+#[test]
+fn a_result_redrawn_off_position_is_lined_up() {
+    // A smooth, detailed photo; the result is the same picture redrawn 5 px lower.
+    let (w, h) = (160u32, 160u32);
+    let n = (w * h) as usize;
+    let at = |x: f32, y: f32| [0.5 + 0.4 * (x * 0.11 + y * 0.05).sin(), 0.5 + 0.4 * (y * 0.09 - x * 0.03).cos(), 0.5];
+    let original: Vec<f32> = (0..n).flat_map(|i| at((i % w as usize) as f32, (i / w as usize) as f32)).collect();
+    let inside = |i: usize| (50..110).contains(&(i % w as usize)) && (50..110).contains(&(i / w as usize));
+    let reference = Reference { original, coverage: (0..n).map(|i| if inside(i) { 1.0 } else { 0.0 }).collect(), w, h };
+    let lower: Vec<f32> = (0..n)
+        .flat_map(|i| {
+            let p = at((i % w as usize) as f32, (i / w as usize) as f32 - 5.0);
+            [p[0], p[1], p[2], 1.0]
+        })
+        .collect();
+    assert_eq!(alignment(&lower, &reference), (0, -5));
+    let back = shifted(&lower, w as usize, h as usize, 0, -5);
+    let worst = (0..n).filter(|&i| !inside(i) && i / (w as usize) < 150).map(|i| (back[i * 4] - reference.original[i * 3]).abs()).fold(0.0f32, f32::max);
+    assert!(worst < 1e-5, "lined up: worst {worst}");
+    // A result in place stays where it is.
+    let in_place: Vec<f32> = reference.original.as_chunks::<3>().0.iter().flat_map(|p| [p[0], p[1], p[2], 1.0]).collect();
+    assert_eq!(alignment(&in_place, &reference), (0, 0));
+}

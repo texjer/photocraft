@@ -505,14 +505,96 @@ fn request_all(ctx: &crate::jobs::JobCtx, provider: &dyn ImageProvider, request:
     }
 }
 
-/// A provider's image, colour-matched to the original around the selection, scaled into `area`
-/// in document coordinates.
+/// Furthest a result is searched for having been redrawn off position: this share of the
+/// request's longer side, in percent, and at most [`MAX_SHIFT`] request pixels.
+const SHIFT_PERCENT: u32 = 3;
+const MAX_SHIFT: i32 = 24;
+
+/// The shift that lines a result up with the original around the selection. Gemini redraws the
+/// whole image and often lands it a few pixels off (4–5 px down in two of three live results),
+/// which leaves a seam along the selection however well the colors match. Searched coarse, then
+/// fine, on a sample of the unselected pixels; (0, 0) unless a shift is clearly better.
+fn alignment(px: &[f32], r: &Reference) -> (i32, i32) {
+    let (w, h) = (r.w as usize, r.h as usize);
+    if px.len() != w * h * 4 {
+        return (0, 0);
+    }
+    let side = r.w.max(r.h);
+    let reach = ((side * SHIFT_PERCENT / 100) as i32).clamp(2, MAX_SHIFT);
+    let stride = (side as usize / 160).max(1);
+    let mut points = Vec::new();
+    for y in (0..h).step_by(stride) {
+        for x in (0..w).step_by(stride) {
+            if r.coverage[y * w + x] <= 0.0 {
+                points.push((x as i32, y as i32));
+            }
+        }
+    }
+    if points.len() < 64 {
+        return (0, 0);
+    }
+    let error = |dx: i32, dy: i32| -> f64 {
+        let total: f64 = points
+            .iter()
+            .map(|&(x, y)| {
+                let (sx, sy) = (x - dx, y - dy);
+                if sx < 0 || sy < 0 || sx >= w as i32 || sy >= h as i32 {
+                    return 1.5;
+                }
+                let (o, p) = ((y as usize * w + x as usize) * 3, (sy as usize * w + sx as usize) * 4);
+                (0..3).map(|c| f64::from((r.original[o + c] - px[p + c]).abs())).sum::<f64>()
+            })
+            .sum();
+        total / points.len() as f64
+    };
+    let still = error(0, 0);
+    let mut best = (still, 0, 0);
+    for dy in (-reach..=reach).step_by(2) {
+        for dx in (-reach..=reach).step_by(2) {
+            let e = error(dx, dy);
+            if e < best.0 {
+                best = (e, dx, dy);
+            }
+        }
+    }
+    let (cx, cy) = (best.1, best.2);
+    for dy in cy - 1..=cy + 1 {
+        for dx in cx - 1..=cx + 1 {
+            let e = error(dx, dy);
+            if e < best.0 {
+                best = (e, dx, dy);
+            }
+        }
+    }
+    if best.0 > still * 0.9 { (0, 0) } else { (best.1, best.2) }
+}
+
+/// `px` (RGBA, `w`×`h`) moved by `dx`, `dy`; the edges it uncovers repeat the nearest pixel.
+fn shifted(px: &[f32], w: usize, h: usize, dx: i32, dy: i32) -> Vec<f32> {
+    let mut out = vec![0.0; px.len()];
+    for y in 0..h {
+        let sy = (y as i32 - dy).clamp(0, h as i32 - 1) as usize;
+        for x in 0..w {
+            let sx = (x as i32 - dx).clamp(0, w as i32 - 1) as usize;
+            out[(y * w + x) * 4..][..4].copy_from_slice(&px[(sy * w + sx) * 4..][..4]);
+        }
+    }
+    out
+}
+
+/// A provider's image, lined up with the original and color-matched to it around the
+/// selection, scaled into `area` in document coordinates.
 fn place(bytes: &[u8], area: Rect, reference: &Reference) -> Result<(Surface, String)> {
     let (got, full) = decode(bytes)?;
     let r = Rect::from_xywh(0, 0, reference.w, reference.h);
     let mut at_request = scaled(&got, full, reference.w, reference.h);
     let mut px = at_request.read_region(r);
-    let stats = match_surroundings(&mut px, reference);
+    let (dx, dy) = alignment(&px, reference);
+    if (dx, dy) != (0, 0) {
+        px = shifted(&px, reference.w as usize, reference.h as usize, dx, dy);
+    }
+    let matched = match_surroundings(&mut px, reference);
+    let stats = if (dx, dy) == (0, 0) { matched } else { format!("moved {dx:+}, {dy:+} px to line up; {matched}") };
     at_request.write_region(r, &px);
     let fitted = scaled(&at_request, r, area.width(), area.height());
     let mut placed = Surface::new(fitted.format());
