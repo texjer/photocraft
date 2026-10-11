@@ -505,14 +505,80 @@ fn request_all(ctx: &crate::jobs::JobCtx, provider: &dyn ImageProvider, request:
     }
 }
 
+/// Below this difference from the original (the largest channel, after the color match) a
+/// result pixel inside the selection counts as the original redrawn; above [`KEEP_HIGH`], as new
+/// content. Measured on a live fill: a pale patch Gemini painted beside a new object differed by
+/// up to 23/255, sky it only redrew by 0.
+const KEEP_LOW: f32 = 0.08;
+const KEEP_HIGH: f32 = 0.2;
+
+/// Inside the selection, where a result is nearly the original, the original shows: its grain
+/// and color stay, and a halo the model painted around new content fades out, so only what
+/// really changed comes from the result. The difference ramps from [`KEEP_LOW`] to
+/// [`KEEP_HIGH`], softened by a small blur; whatever new content encloses counts as new too (not
+/// reachable from the selection's edge without crossing it), so a new object whose colors match
+/// the old ones in places doesn't let the old one show through. Not for an empty prompt: the fill
+/// there replaces what was selected, and the original would show through where it resembles it.
+fn keep_original(px: &mut [f32], r: &Reference) {
+    let (w, h) = (r.w as usize, r.h as usize);
+    if px.len() != w * h * 4 {
+        return;
+    }
+    let inside: Vec<bool> = r.coverage.iter().map(|&c| c > 0.0).collect();
+    let mut matte = vec![1.0f32; w * h];
+    let mut new = vec![false; w * h];
+    for i in (0..w * h).filter(|&i| inside[i]) {
+        let d = (0..3).map(|c| (px[i * 4 + c] - r.original[i * 3 + c]).abs()).fold(0.0f32, f32::max);
+        let t = ((d - KEEP_LOW) / (KEEP_HIGH - KEEP_LOW)).clamp(0.0, 1.0);
+        matte[i] = t * t * (3.0 - 2.0 * t);
+        new[i] = d >= KEEP_HIGH;
+    }
+    // Flood from the selection's edge through what isn't new; what stays unreached is enclosed.
+    let mut reached = vec![false; w * h];
+    let mut queue = std::collections::VecDeque::new();
+    for i in (0..w * h).filter(|&i| inside[i] && !new[i]) {
+        let (x, y) = (i % w, i / w);
+        if x == 0 || y == 0 || x + 1 == w || y + 1 == h || !inside[i - 1] || !inside[i + 1] || !inside[i - w] || !inside[i + w] {
+            reached[i] = true;
+            queue.push_back(i);
+        }
+    }
+    while let Some(i) = queue.pop_front() {
+        let (x, y) = (i % w, i / w);
+        for (nx, ny) in [(x.wrapping_sub(1), y), (x + 1, y), (x, y.wrapping_sub(1)), (x, y + 1)] {
+            if nx < w && ny < h {
+                let j = ny * w + nx;
+                if inside[j] && !new[j] && !reached[j] {
+                    reached[j] = true;
+                    queue.push_back(j);
+                }
+            }
+        }
+    }
+    for i in (0..w * h).filter(|&i| inside[i] && !reached[i]) {
+        matte[i] = 1.0;
+    }
+    box_blur(&mut matte, w, h, 2);
+    box_blur(&mut matte, w, h, 2);
+    for (i, m) in matte.iter().enumerate() {
+        if inside[i] {
+            px[i * 4 + 3] *= m;
+        }
+    }
+}
+
 /// A provider's image, colour-matched to the original around the selection, scaled into `area`
-/// in document coordinates.
-fn place(bytes: &[u8], area: Rect, reference: &Reference) -> Result<(Surface, String)> {
+/// in document coordinates. With `keep`, the original shows where the result only redrew it
+/// ([`keep_original`]).
+fn place(bytes: &[u8], area: Rect, reference: &Reference, keep: bool) -> Result<(Surface, String)> {
     let (got, full) = decode(bytes)?;
     let r = Rect::from_xywh(0, 0, reference.w, reference.h);
     let mut at_request = scaled(&got, full, reference.w, reference.h);
     let mut px = at_request.read_region(r);
     let stats = match_surroundings(&mut px, reference);
+    if keep {
+        keep_original(&mut px, reference);
+    }
     at_request.write_region(r, &px);
     let fitted = scaled(&at_request, r, area.width(), area.height());
     let mut placed = Surface::new(fitted.format());
@@ -547,7 +613,9 @@ fn dump(request: &EditRequest, results: &[Vec<u8>], stats: &[String]) {
 
 /// Place every result, then (when asked) dump the request and results for debugging.
 fn place_all(request: &EditRequest, results: &[Vec<u8>], area: Rect, reference: &Reference) -> Result<Vec<Surface>> {
-    let placed = results.iter().map(|b| place(b, area, reference)).collect::<Result<Vec<_>>>()?;
+    // An empty prompt replaces what was selected; with a prompt the original stays where unchanged.
+    let keep = !request.prompt.is_empty();
+    let placed = results.iter().map(|b| place(b, area, reference, keep)).collect::<Result<Vec<_>>>()?;
     let stats: Vec<String> = placed.iter().map(|(_, s)| s.clone()).collect();
     dump(request, results, &stats);
     Ok(placed.into_iter().map(|(p, _)| p).collect())

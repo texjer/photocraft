@@ -449,3 +449,51 @@ fn drift_that_varies_across_the_image_leaves_no_seam() {
     let worst = (0..n).filter(|&i| inside(i)).map(|i| (px[i * 4] - 0.5).abs()).fold(0.0f32, f32::max);
     assert!(worst < 0.02, "worst {worst}");
 }
+
+#[test]
+fn the_original_shows_where_a_result_only_redrew_it() {
+    let (w, h) = (100u32, 100u32);
+    let n = (w * h) as usize;
+    let inside = |i: usize| (20..80).contains(&(i % w as usize)) && (20..80).contains(&(i / w as usize));
+    let reference = Reference { original: [0.5, 0.6, 0.8].repeat(n), coverage: (0..n).map(|i| if inside(i) { 1.0 } else { 0.0 }).collect(), w, h };
+    // The redrawn sky: grain and a faint lighter halo; a new red object in the middle.
+    let mut px: Vec<f32> = (0..n)
+        .flat_map(|i| {
+            let (x, y) = (i % w as usize, i / w as usize);
+            let grain = if (x + y) % 2 == 0 { 0.02 } else { -0.02 };
+            if (40..60).contains(&x) && (40..60).contains(&y) { [0.9, 0.2, 0.1, 1.0] } else { [0.52 + grain, 0.6 + grain, 0.82, 1.0] }
+        })
+        .collect();
+    keep_original(&mut px, &reference);
+    let alpha = |x: usize, y: usize| px[(y * w as usize + x) * 4 + 3];
+    assert!(alpha(25, 25) < 0.05, "redrawn sky gives way to the original: {}", alpha(25, 25));
+    assert!(alpha(50, 50) > 0.95, "the new object stays");
+    assert!(alpha(5, 5) > 0.95, "outside the selection the group mask decides, not this");
+
+    // A new object whose middle happens to match the old colors: its outline encloses it, so
+    // the middle comes from the result too.
+    let mut ring: Vec<f32> = (0..n)
+        .flat_map(|i| {
+            let (x, y) = (i % w as usize, i / w as usize);
+            let edge = (35..65).contains(&x) && (35..65).contains(&y) && !((40..60).contains(&x) && (40..60).contains(&y));
+            if edge { [0.1, 0.1, 0.1, 1.0] } else { [0.5, 0.6, 0.8, 1.0] }
+        })
+        .collect();
+    keep_original(&mut ring, &reference);
+    assert!(ring[(50 * w as usize + 50) * 4 + 3] > 0.95, "enclosed by new content: from the result");
+}
+
+#[test]
+fn an_empty_prompt_replaces_everything_selected() {
+    // The fake answers with the image it was sent: the selection already filled from around it.
+    // With no prompt that fill is kept in full; with one, the parts equal to the original give way.
+    let mut s = session(160, 160);
+    s.execute("select.rect", json!({"x": 50, "y": 50, "width": 60, "height": 60})).unwrap();
+    s.execute("edit.fill", json!({"contents": "color", "color": "#202020"})).unwrap();
+    let fake = Arc::new(Fake { echo: Some(0), ..Arc::into_inner(Fake::new([0, 0, 0])).unwrap() });
+    s.set_image_provider(Some(fake));
+    let r = s.execute(FILL, json!({"variations": 1})).unwrap();
+    let id = r["variations"][0].as_u64().unwrap();
+    let layer = doc(&s).layer(photocraft_doc::LayerId(id)).unwrap().surface().unwrap();
+    assert!(layer.rgba(80, 80)[3] > 0.99, "removal keeps the whole fill");
+}
