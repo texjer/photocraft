@@ -4090,4 +4090,4 @@ layerLabel	No Color	Sem cor
 # Graphics Adapter preference (#1885)
 	GPU adapter	Adaptador de GPU
 # Save for Web: AVIF (#2415, #6391)
-	The preview shows the image before compression. AVIF files carry no color profile or metadata.	A visualização mostra a imagem antes da compactação. Arquivos AVIF não incluem perfil de cores nem metadados.
+	AVIF files carry no color profile or metadata.	Arquivos AVIF não incluem perfil de cores nem metadados.

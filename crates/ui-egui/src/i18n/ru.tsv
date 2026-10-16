@@ -3278,4 +3278,4 @@ curves	Smooth	Сгладить
 # Graphics Adapter preference (#1885)
 	GPU adapter	Адаптер GPU
 # Save for Web: AVIF (#2415, #6391)
-	The preview shows the image before compression. AVIF files carry no color profile or metadata.	Просмотр показывает изображение до сжатия. Файлы AVIF не содержат цветового профиля и метаданных.
+	AVIF files carry no color profile or metadata.	Файлы AVIF не содержат цветового профиля и метаданных.
