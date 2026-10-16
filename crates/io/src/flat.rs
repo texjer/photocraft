@@ -100,6 +100,7 @@ fn import_animation_layers(name: &str, bytes: &[u8]) -> Result<Option<ImportResu
                 .collect(),
             current: 0,
             loops: photocraft_doc::LoopCount::Forever,
+            selected: Vec::new(),
         };
         animation.apply(0, &mut doc.layers);
         doc.frame_animation = Some(animation);

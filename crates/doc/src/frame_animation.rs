@@ -62,12 +62,16 @@ pub struct FrameAnimation {
     pub current: usize,
     #[serde(default)]
     pub loops: LoopCount,
+    /// Every selected frame, sorted, when more than `current` is selected (Shift- or ⌘-click,
+    /// Select All Frames); empty when only `current` is. See [`FrameAnimation::selection`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub selected: Vec<usize>,
 }
 
 impl FrameAnimation {
     /// One frame showing the layers as they are now.
     pub fn new(layers: &[Layer]) -> Self {
-        FrameAnimation { frames: vec![AnimFrame { delay_ms: 0, hidden: hidden_ids(layers) }], current: 0, loops: LoopCount::Forever }
+        FrameAnimation { frames: vec![AnimFrame { delay_ms: 0, hidden: hidden_ids(layers) }], current: 0, loops: LoopCount::Forever, selected: Vec::new() }
     }
 
     /// Keeps the selected frame and every delay valid, whatever was stored.
@@ -80,6 +84,25 @@ impl FrameAnimation {
             f.delay_ms = f.delay_ms.min(MAX_DELAY_MS);
         }
         self.current = self.current.min(self.frames.len() - 1);
+        let n = self.frames.len();
+        self.selected.retain(|&i| i < n);
+        self.selected.sort_unstable();
+        self.selected.dedup();
+        if self.selected.len() < 2 {
+            self.selected.clear();
+        } else if let Err(at) = self.selected.binary_search(&self.current) {
+            self.selected.insert(at, self.current);
+        }
+    }
+
+    /// The selected frames, sorted: `current` alone, or every frame of a wider selection.
+    pub fn selection(&self) -> Vec<usize> {
+        if self.selected.len() > 1 { self.selected.clone() } else { vec![self.current] }
+    }
+
+    /// Whether frame `i` is selected.
+    pub fn is_selected(&self, i: usize) -> bool {
+        i == self.current || self.selected.binary_search(&i).is_ok()
     }
 
     /// Records the visibility `layers` show as the selected frame's (an edit made while a frame is
@@ -237,7 +260,7 @@ mod tests {
 
     #[test]
     fn clamp_repairs_whatever_was_stored() {
-        let mut a = FrameAnimation { frames: Vec::new(), current: 99, loops: LoopCount::Times(5) };
+        let mut a = FrameAnimation { frames: Vec::new(), current: 99, loops: LoopCount::Times(5), selected: vec![7, 99] };
         a.clamp();
         assert_eq!((a.frames.len(), a.current), (1, 0));
         a.frames[0].delay_ms = u32::MAX;

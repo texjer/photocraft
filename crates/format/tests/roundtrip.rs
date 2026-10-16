@@ -705,7 +705,7 @@ fn frame_animation_survives_roundtrip_with_its_hidden_layers_remapped() {
         v
     };
     let frames = vec![AnimFrame { delay_ms: 100, hidden: hide(0) }, AnimFrame { delay_ms: 250, hidden: hide(1) }, AnimFrame { delay_ms: 0, hidden: hide(2) }];
-    doc.frame_animation = Some(FrameAnimation { frames, current: 1, loops: LoopCount::Times(4) });
+    doc.frame_animation = Some(FrameAnimation { frames, current: 1, loops: LoopCount::Times(4), selected: Vec::new() });
     doc.select_animation_frame(1);
 
     let bytes = save_to_bytes(&doc, &SaveOptions::default()).unwrap();
@@ -734,15 +734,17 @@ fn a_malformed_frame_animation_is_repaired_on_load() {
         d.frame_animation = Some(a);
         load_from_bytes(&save_to_bytes(&d, &SaveOptions::default()).unwrap()).unwrap().frame_animation.unwrap()
     };
-    let none = load(FrameAnimation { frames: Vec::new(), current: 9, loops: LoopCount::Forever });
+    let none = load(FrameAnimation { frames: Vec::new(), current: 9, loops: LoopCount::Forever, selected: Vec::new() });
     assert_eq!((none.frames.len(), none.current), (1, 0));
     let wild = load(FrameAnimation {
         frames: vec![AnimFrame { delay_ms: u32::MAX, hidden: vec![photocraft_doc::LayerId(u64::MAX)] }],
         current: usize::MAX,
         loops: LoopCount::Times(0),
+        selected: vec![usize::MAX, 3],
     });
     assert_eq!((wild.frames[0].delay_ms, wild.current), (MAX_DELAY_MS, 0));
-    let many = load(FrameAnimation { frames: vec![AnimFrame::default(); MAX_FRAMES + 50], current: MAX_FRAMES + 10, loops: LoopCount::Forever });
+    assert!(wild.selected.is_empty(), "a selection past the end is dropped");
+    let many = load(FrameAnimation { frames: vec![AnimFrame::default(); MAX_FRAMES + 50], current: MAX_FRAMES + 10, loops: LoopCount::Forever, selected: Vec::new() });
     assert_eq!((many.frames.len(), many.current), (MAX_FRAMES, MAX_FRAMES - 1));
 }
 
