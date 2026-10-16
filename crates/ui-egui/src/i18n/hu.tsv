@@ -4216,3 +4216,5 @@ cameraRaw	Yellow	Sárga
 
 # Graphics Adapter preference (#1885)
 	GPU adapter	GPU-adapter
+# Save for Web: AVIF (#2415, #6391)
+	The preview shows the image before compression. AVIF files carry no color profile or metadata.	Az előnézet a tömörítés előtti képet mutatja. Az AVIF-fájlok nem tartalmaznak színprofilt és metaadatokat.

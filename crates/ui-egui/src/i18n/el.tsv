@@ -3999,3 +3999,5 @@ curves	Smooth	Εξομάλυνση
 
 # Graphics Adapter preference (#1885)
 	GPU adapter	Προσαρμογέας GPU
+# Save for Web: AVIF (#2415, #6391)
+	The preview shows the image before compression. AVIF files carry no color profile or metadata.	Η προεπισκόπηση δείχνει την εικόνα πριν από τη συμπίεση. Τα αρχεία AVIF δεν περιέχουν χρωματικό προφίλ ούτε μεταδεδομένα.

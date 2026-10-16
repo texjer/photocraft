@@ -3790,3 +3790,5 @@ curves	Smooth	Làm mượt
 
 # Graphics Adapter preference (#1885)
 	GPU adapter	Bộ điều hợp GPU
+# Save for Web: AVIF (#2415, #6391)
+	The preview shows the image before compression. AVIF files carry no color profile or metadata.	Bản xem trước hiển thị ảnh trước khi nén. Tệp AVIF không chứa hồ sơ màu hay siêu dữ liệu.
