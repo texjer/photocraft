@@ -4291,3 +4291,15 @@ shape	Appearance	Izgled
 	Delete Selected Frame	Obriši izabrani kadar
 	{seconds} sec.	{seconds} s
 	{count} times	{count} puta
+	A layer per frame, each with its own delay, edited in Window › Timeline	Jedan sloj po kadru, svaki sa svojim kašnjenjem, uređuje se u Prozor › Vremenska linija
+	A still image	Statična slika
+	Change it later in Preferences › File Handling.	Promenite to kasnije u Podešavanja › Rukovanje datotekama.
+	First frame only	Samo prvi kadar
+	Frame animation	Animacija po kadrovima
+	One layer holding every frame, played on the timeline	Jedan sloj sa svim kadrovima, reprodukuje se na vremenskoj liniji
+	Open Animated {format}	Otvori animirani {format}
+	Remember this choice for {format} files	Zapamti ovaj izbor za {format} datoteke
+	Video layer	Video sloj
+	“{name}” is an animated {format} with {frames} frames. Open it as:	„{name}“ je animirani {format} sa {frames} kadrova. Otvori kao:
+	Open animated GIF as	Animirani GIF otvori kao
+	Open animated WebP as	Animirani WebP otvori kao

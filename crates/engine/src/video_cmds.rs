@@ -216,7 +216,7 @@ fn rasterize(s: &mut Session, _p: &Value) -> Result<Value> {
 /// Frames loaded from a file or an image sequence.
 struct Footage {
     frames: Vec<Surface>,
-    /// The frame rate the footage itself implies (a single animated GIF's delays); `None` for
+    /// The frame rate the footage itself implies (a single animated GIF's or WebP's delays); `None` for
     /// stills and sequences, which carry none.
     fps: Option<f32>,
 }
@@ -225,7 +225,7 @@ struct Footage {
 /// first one seen on a tie. GIF has a delay per frame but the timeline one rate. Delays under
 /// 20 ms, which includes the 0 and 10 ms many encoders write, are shown at 100 ms, as browsers
 /// do, since they would otherwise play at an unintended 50-100 fps.
-fn fps_from_delays(delays: &[u32]) -> Option<f32> {
+pub(crate) fn fps_from_delays(delays: &[u32]) -> Option<f32> {
     let clean = |d: u32| if d < 20 { 100 } else { d };
     let mut counts: Vec<(u32, usize)> = Vec::new();
     for d in delays.iter().copied().map(clean) {
@@ -241,7 +241,7 @@ fn fps_from_delays(delays: &[u32]) -> Option<f32> {
     best.map(|(d, _)| 1000.0 / d as f32)
 }
 
-/// Load frames from `path`: a single image (1 frame, or every frame of an animated GIF), or a
+/// Load frames from `path`: a single image (1 frame, or every frame of an animated GIF or WebP), or a
 /// directory of images (sorted = an image sequence). Each becomes a full raster frame in the
 /// document's format.
 fn load_frames(path: &str, fmt: photocraft_color::PixelFormat) -> Result<Footage> {
@@ -271,8 +271,8 @@ fn load_frames(path: &str, fmt: photocraft_color::PixelFormat) -> Result<Footage
     for f in &files {
         let bytes = std::fs::read(f).map_err(|e| EngineError::Other(format!("read `{}`: {e}", f.display())))?;
         let name = f.to_string_lossy();
-        if photocraft_codecs::detect(&bytes) == Some(photocraft_codecs::Format::Gif) {
-            photocraft_io::import_gif_frames(&name, &bytes, &mut |doc, delay_ms| {
+        if matches!(photocraft_codecs::detect(&bytes), Some(photocraft_codecs::Format::Gif | photocraft_codecs::Format::WebP)) {
+            photocraft_io::import_animation_frames(&name, &bytes, &mut |doc, delay_ms| {
                 frames.push(crate::file_cmds::flattened(&doc, fmt));
                 delays.push(delay_ms);
                 Ok(())
@@ -287,7 +287,7 @@ fn load_frames(path: &str, fmt: photocraft_color::PixelFormat) -> Result<Footage
         }
         frames.push(crate::file_cmds::flattened(&doc, fmt));
     }
-    // Only a lone GIF says how fast it plays; a sequence mixing files has no single rate.
+    // Only a lone GIF or WebP says how fast it plays; a sequence mixing files has no single rate.
     let fps = if files.len() == 1 { fps_from_delays(&delays) } else { None };
     Ok(Footage { frames, fps })
 }

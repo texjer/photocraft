@@ -3396,3 +3396,15 @@ curves	Smooth	매끄럽게
 	Delete Selected Frame	선택한 프레임 삭제
 	{seconds} sec.	{seconds}초
 	{count} times	{count}회
+	A layer per frame, each with its own delay, edited in Window › Timeline	프레임마다 레이어 하나, 각각 고유한 지연 시간, 창 › 타임라인에서 편집
+	A still image	정지 이미지
+	Change it later in Preferences › File Handling.	나중에 환경 설정 › 파일 처리에서 변경할 수 있습니다.
+	First frame only	첫 프레임만
+	Frame animation	프레임 애니메이션
+	One layer holding every frame, played on the timeline	모든 프레임을 담은 레이어 하나, 타임라인에서 재생
+	Open Animated {format}	애니메이션 {format} 열기
+	Remember this choice for {format} files	{format} 파일에 이 선택 기억
+	Video layer	비디오 레이어
+	“{name}” is an animated {format} with {frames} frames. Open it as:	“{name}”은(는) 프레임 {frames}개의 애니메이션 {format}입니다. 다음으로 열기:
+	Open animated GIF as	애니메이션 GIF 열기 방식
+	Open animated WebP as	애니메이션 WebP 열기 방식

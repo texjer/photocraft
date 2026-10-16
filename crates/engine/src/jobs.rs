@@ -472,14 +472,19 @@ impl Session {
     /// (per layer for PSD/PSB) and cancellation, then add the document like
     /// [`Session::open_document`] (Color Settings policies apply). `name` names the document.
     /// The job's result is `{document, name, warnings, color}`; on wasm it runs inline. When
-    /// Color Settings ask about the file's profile, the document is held back instead and the
-    /// result is `{held, name, warnings, color}` (`color` the question): take it with
-    /// [`Session::take_held_open`] once answered.
+    /// Color Settings ask about the file's profile, or it is an animation the File Handling
+    /// preference says to ask about ([`crate::animated_open::question`]), the document is held
+    /// back instead and the result is `{held, name, warnings, color, animated}` (the questions,
+    /// `null` when not asked): take it with [`Session::take_held_open`] once answered.
     pub fn start_open(&mut self, name: &str, source: OpenSource) -> Result<Started> {
         let label = format!("Opening {name}");
         let name_w = name.to_string();
         let name_a = name.to_string();
         let max_svg_group_depth = self.prefs().file_handling.rasterize_svg_groups_deeper_than as usize;
+        let path = match &source {
+            OpenSource::Path(p) => Some(p.clone()),
+            OpenSource::Bytes(_) => None,
+        };
         self.start_job(
             OPEN_JOB,
             json!({"name": name}),
@@ -503,13 +508,19 @@ impl Session {
                 warm_layer_bounds(&imported.document, || ctx.check())?;
                 Ok(imported)
             },
-            move |s, r: photocraft_io::ImportResult| {
+            move |s, mut r: photocraft_io::ImportResult| {
+                // An animated GIF or WebP opens as the preference says, or is held back to ask.
+                let animated = crate::animated_open::question(s.prefs(), &name_a, &r.document);
+                if animated.is_none() {
+                    crate::animated_open::apply_preferred(s.prefs(), &name_a, &mut r.document, path.as_deref())?;
+                }
                 // Ask When Opening: held back until the prompt is answered (`take_held_open`). A
                 // developed raw has no embedded profile to ask about.
                 let raw = r.warnings.iter().any(|w| w.contains(photocraft_io::raw::DEVELOPED_NOTE));
-                if let Some(question) = s.color.open_question(&r.document).filter(|_| !raw) {
+                let color = s.color.open_question(&r.document).filter(|_| !raw);
+                if animated.is_some() || color.is_some() {
                     let held = s.hold_open(r.document, r.source_read_only);
-                    return Ok(json!({"held": held, "name": name_a, "warnings": r.warnings, "color": question}));
+                    return Ok(json!({"held": held, "name": name_a, "warnings": r.warnings, "color": color, "animated": animated}));
                 }
                 let (index, color) = s.open_document(r.document, None);
                 if let Some(st) = s.active_mut() {

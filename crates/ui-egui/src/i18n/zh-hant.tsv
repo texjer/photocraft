@@ -2819,3 +2819,15 @@ curves	Smooth	平滑
 	Delete Selected Frame	刪除選取的影格
 	{seconds} sec.	{seconds} 秒
 	{count} times	{count} 次
+	A layer per frame, each with its own delay, edited in Window › Timeline	每個影格一個圖層，各有自己的延遲，在「視窗 › 時間軸」中編輯
+	A still image	靜態影像
+	Change it later in Preferences › File Handling.	之後可在「偏好設定 › 檔案處理」中變更。
+	First frame only	僅第一個影格
+	Frame animation	影格動畫
+	One layer holding every frame, played on the timeline	一個包含所有影格的圖層，在時間軸上播放
+	Open Animated {format}	開啟動畫 {format}
+	Remember this choice for {format} files	對 {format} 檔案記住此選擇
+	Video layer	視訊圖層
+	“{name}” is an animated {format} with {frames} frames. Open it as:	「{name}」是包含 {frames} 個影格的動畫 {format}。開啟為：
+	Open animated GIF as	動畫 GIF 開啟為
+	Open animated WebP as	動畫 WebP 開啟為

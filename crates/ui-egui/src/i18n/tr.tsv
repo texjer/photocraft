@@ -3948,3 +3948,15 @@ cameraData	Lens	Lens
 	Delete Selected Frame	Seçili kareyi sil
 	{seconds} sec.	{seconds} sn.
 	{count} times	{count} kez
+	A layer per frame, each with its own delay, edited in Window › Timeline	Her kare için bir katman, her biri kendi gecikmesiyle; Pencere › Zaman çizelgesi'nde düzenlenir
+	A still image	Durağan görüntü
+	Change it later in Preferences › File Handling.	Daha sonra Tercihler › Dosya İşleme'den değiştirebilirsiniz.
+	First frame only	Yalnızca ilk kare
+	Frame animation	Kare animasyonu
+	One layer holding every frame, played on the timeline	Tüm kareleri tutan tek katman, zaman çizelgesinde oynatılır
+	Open Animated {format}	Animasyonlu {format} Aç
+	Remember this choice for {format} files	Bu seçimi {format} dosyaları için hatırla
+	Video layer	Video katmanı
+	“{name}” is an animated {format} with {frames} frames. Open it as:	“{name}”, {frames} kareli animasyonlu bir {format}. Şu şekilde aç:
+	Open animated GIF as	Animasyonlu GIF'i şu şekilde aç
+	Open animated WebP as	Animasyonlu WebP'yi şu şekilde aç

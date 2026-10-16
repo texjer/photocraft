@@ -20,7 +20,7 @@ fn err(e: impl std::fmt::Display) -> CodecError {
 type Decoder<'a> = image_webp::WebPDecoder<Cursor<&'a [u8]>>;
 
 /// The decoder with its chunks read, the stored size and the output layout, the size checked.
-fn open<'a>(bytes: &'a [u8], limits: &Limits) -> Result<(Decoder<'a>, u32, u32, ChannelLayout), CodecError> {
+pub(crate) fn open<'a>(bytes: &'a [u8], limits: &Limits) -> Result<(Decoder<'a>, u32, u32, ChannelLayout), CodecError> {
     let mut dec = image_webp::WebPDecoder::new(Cursor::new(bytes)).map_err(err)?;
     dec.set_memory_limit(limits.alloc_usize());
     let (w, h) = dec.dimensions();

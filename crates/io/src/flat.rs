@@ -21,9 +21,9 @@ pub fn import_flat(name: &str, bytes: &[u8]) -> Result<ImportResult, IoError> {
     if format == Some(Format::Tiff) {
         return import_tiff_page(name, bytes, None);
     }
-    // An animated GIF opens with every frame as its own layer, to edit by hand.
-    if format == Some(Format::Gif)
-        && let Some(r) = import_gif_layers(name, bytes)?
+    // An animated GIF or WebP opens with every frame as its own layer, to edit by hand.
+    if matches!(format, Some(Format::Gif | Format::WebP))
+        && let Some(r) = import_animation_layers(name, bytes)?
     {
         return Ok(r);
     }
@@ -60,11 +60,12 @@ pub fn import_flat(name: &str, bytes: &[u8]) -> Result<ImportResult, IoError> {
     Ok(r)
 }
 
-/// An animated GIF as one document with a raster layer per frame ("Frame 1" at the bottom), each
-/// a full picture of the canvas, and a frame animation that shows one layer per frame with the
-/// GIF's delays. `None` for a still GIF, which opens as any flat image does.
-fn import_gif_layers(name: &str, bytes: &[u8]) -> Result<Option<ImportResult>, IoError> {
-    let frames = codecs::decode_gif_frames(bytes, &codecs::DecodeOptions::default())?;
+/// An animated GIF or WebP as one document with a raster layer per frame ("Frame 1" at the
+/// bottom), each a full picture of the canvas, and a frame animation that shows one layer per
+/// frame with the file's delays. `None` for a still image, which opens as any flat image does.
+fn import_animation_layers(name: &str, bytes: &[u8]) -> Result<Option<ImportResult>, IoError> {
+    let Some(frames) = codecs::decode_frames(bytes, &codecs::DecodeOptions::default()) else { return Ok(None) };
+    let frames = frames?;
     if frames.len() < 2 {
         return Ok(None);
     }
@@ -106,11 +107,11 @@ fn import_gif_layers(name: &str, bytes: &[u8]) -> Result<Option<ImportResult>, I
     Ok(result)
 }
 
-/// Every frame of a GIF as a single-layer document, handed to `each` in order with its delay in
-/// milliseconds (a still GIF has one). One frame at a time becomes a document, so the caller
+/// Every frame of a GIF or WebP as a single-layer document, handed to `each` in order with its delay in
+/// milliseconds (a still image has one). One frame at a time becomes a document, so the caller
 /// can flatten and drop it. Returns the number of frames; stops at the first error `each` gives.
-pub fn import_gif_frames(name: &str, bytes: &[u8], each: &mut dyn FnMut(Document, u32) -> Result<(), IoError>) -> Result<usize, IoError> {
-    let frames = codecs::decode_gif_frames(bytes, &codecs::DecodeOptions::default())?;
+pub fn import_animation_frames(name: &str, bytes: &[u8], each: &mut dyn FnMut(Document, u32) -> Result<(), IoError>) -> Result<usize, IoError> {
+    let frames = codecs::decode_frames(bytes, &codecs::DecodeOptions::default()).ok_or(codecs::CodecError::UnknownFormat)??;
     let n = frames.len();
     for f in frames {
         each(image_to_document(name, &f.image)?.document, f.delay_ms)?;

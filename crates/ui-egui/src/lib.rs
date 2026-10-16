@@ -1317,7 +1317,12 @@ impl PhotocraftApp {
         }
         let import = self.services.import.as_ref().ok_or("no importer configured")?;
         let max_svg_group_depth = self.session.prefs().file_handling.rasterize_svg_groups_deeper_than as usize;
-        let (doc, warnings) = import(name, bytes, max_svg_group_depth)?;
+        let (mut doc, warnings) = import(name, bytes, max_svg_group_depth)?;
+        // An animated GIF or WebP opens as File Handling says, or asks first (`open_prompt`).
+        let animated = photocraft_engine::animated_open::question(self.session.prefs(), name, &doc);
+        if animated.is_none() {
+            photocraft_engine::animated_open::apply_preferred(self.session.prefs(), name, &mut doc, path).map_err(|e| e.to_string())?;
+        }
         // Edit › Color Settings policies apply on open; Ask When Opening holds the file back
         // until its prompt is answered, and later files wait behind it (`open_prompt`).
         // Missing fonts are read from the document itself: it may not be open yet (#4559).
@@ -1337,6 +1342,7 @@ impl PhotocraftApp {
                 bytes: (wants_raw && path.is_none()).then(|| std::sync::Arc::new(bytes.to_vec())),
                 slot: None,
                 question,
+                animated,
                 policy_applied: false,
             },
         );
@@ -2656,6 +2662,9 @@ mod color_swatch_tests;
 
 #[cfg(test)]
 mod profile_open_tests;
+
+#[cfg(test)]
+mod animated_open_tests;
 
 #[cfg(test)]
 mod profile_prompt_tests;

@@ -4339,3 +4339,15 @@ shape	Appearance	Aspetto
 	Delete Selected Frame	Elimina fotogramma selezionato
 	{seconds} sec.	{seconds} sec.
 	{count} times	{count} volte
+	A layer per frame, each with its own delay, edited in Window › Timeline	Un livello per fotogramma, ciascuno con il proprio ritardo, modificabile in Finestra › Timeline
+	A still image	Un’immagine fissa
+	Change it later in Preferences › File Handling.	Puoi cambiarlo in Preferenze › Gestione file.
+	First frame only	Solo il primo fotogramma
+	Frame animation	Animazione a fotogrammi
+	One layer holding every frame, played on the timeline	Un livello con tutti i fotogrammi, riprodotto nella timeline
+	Open Animated {format}	Apri {format} animato
+	Remember this choice for {format} files	Ricorda questa scelta per i file {format}
+	Video layer	Livello video
+	“{name}” is an animated {format} with {frames} frames. Open it as:	«{name}» è un {format} animato con {frames} fotogrammi. Aprilo come:
+	Open animated GIF as	Apri GIF animato come
+	Open animated WebP as	Apri WebP animato come

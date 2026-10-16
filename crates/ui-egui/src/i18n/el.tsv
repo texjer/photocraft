@@ -3918,3 +3918,15 @@ curves	Smooth	Εξομάλυνση
 	Delete Selected Frame	Διαγραφή επιλεγμένου καρέ
 	{seconds} sec.	{seconds} δ
 	{count} times	{count} φορές
+	A layer per frame, each with its own delay, edited in Window › Timeline	Ένα επίπεδο ανά καρέ, το καθένα με δική του καθυστέρηση, επεξεργασία στο Παράθυρο › Χρονογραμμή
+	A still image	Μια στατική εικόνα
+	Change it later in Preferences › File Handling.	Αλλάξτε το αργότερα στις Προτιμήσεις › Διαχείριση αρχείων.
+	First frame only	Μόνο το πρώτο καρέ
+	Frame animation	Κινούμενη εικόνα καρέ
+	One layer holding every frame, played on the timeline	Ένα επίπεδο με όλα τα καρέ, αναπαράγεται στη χρονογραμμή
+	Open Animated {format}	Άνοιγμα κινούμενου {format}
+	Remember this choice for {format} files	Απομνημόνευση αυτής της επιλογής για αρχεία {format}
+	Video layer	Επίπεδο βίντεο
+	“{name}” is an animated {format} with {frames} frames. Open it as:	Το «{name}» είναι κινούμενο {format} με {frames} καρέ. Άνοιγμα ως:
+	Open animated GIF as	Άνοιγμα κινούμενου GIF ως
+	Open animated WebP as	Άνοιγμα κινούμενου WebP ως

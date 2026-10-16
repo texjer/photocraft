@@ -3917,3 +3917,15 @@ curves	Smooth	Згладити
 	Delete Selected Frame	Видалити вибраний кадр
 	{seconds} sec.	{seconds} с
 	{count} times	{count} разів
+	A layer per frame, each with its own delay, edited in Window › Timeline	Шар на кожен кадр, кожен із власною затримкою; редагування у Вікно › Шкала часу
+	A still image	Нерухоме зображення
+	Change it later in Preferences › File Handling.	Змінити можна в Налаштування › Обробка файлів.
+	First frame only	Лише перший кадр
+	Frame animation	Покадрова анімація
+	One layer holding every frame, played on the timeline	Один шар з усіма кадрами, відтворюється на шкалі часу
+	Open Animated {format}	Відкрити анімований {format}
+	Remember this choice for {format} files	Запам’ятати цей вибір для файлів {format}
+	Video layer	Відеошар
+	“{name}” is an animated {format} with {frames} frames. Open it as:	«{name}» — анімований {format}, кадрів: {frames}. Відкрити як:
+	Open animated GIF as	Відкривати анімований GIF як
+	Open animated WebP as	Відкривати анімований WebP як

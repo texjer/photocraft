@@ -3826,3 +3826,15 @@ navigator	Zoom	Zvětšení
 	Delete Selected Frame	Odstranit vybraný snímek
 	{seconds} sec.	{seconds} s
 	{count} times	{count}×
+	A layer per frame, each with its own delay, edited in Window › Timeline	Vrstva pro každý snímek s vlastní prodlevou, upravuje se v Okno › Časová osa
+	A still image	Statický obrázek
+	Change it later in Preferences › File Handling.	Později to změníte v Předvolby › Práce se soubory.
+	First frame only	Jen první snímek
+	Frame animation	Snímková animace
+	One layer holding every frame, played on the timeline	Jedna vrstva se všemi snímky, přehrává se na časové ose
+	Open Animated {format}	Otevřít animovaný {format}
+	Remember this choice for {format} files	Zapamatovat si tuto volbu pro soubory {format}
+	Video layer	Video vrstva
+	“{name}” is an animated {format} with {frames} frames. Open it as:	„{name}“ je animovaný {format} s {frames} snímky. Otevřít jako:
+	Open animated GIF as	Animovaný GIF otevřít jako
+	Open animated WebP as	Animovaný WebP otevřít jako

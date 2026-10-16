@@ -3223,3 +3223,15 @@ curves	Smooth	Lisser
 	Delete Selected Frame	Supprimer l’image sélectionnée
 	{seconds} sec.	{seconds} s
 	{count} times	{count} fois
+	A layer per frame, each with its own delay, edited in Window › Timeline	Un calque par image, chacune avec son propre délai, modifiable dans Fenêtre › Montage
+	A still image	Une image fixe
+	Change it later in Preferences › File Handling.	Modifiable plus tard dans Préférences › Gestion des fichiers.
+	First frame only	Première image seulement
+	Frame animation	Animation image par image
+	One layer holding every frame, played on the timeline	Un calque contenant toutes les images, lu dans le montage
+	Open Animated {format}	Ouvrir un {format} animé
+	Remember this choice for {format} files	Mémoriser ce choix pour les fichiers {format}
+	Video layer	Calque vidéo
+	“{name}” is an animated {format} with {frames} frames. Open it as:	« {name} » est un {format} animé de {frames} images. L’ouvrir comme :
+	Open animated GIF as	Ouvrir un GIF animé comme
+	Open animated WebP as	Ouvrir un WebP animé comme
