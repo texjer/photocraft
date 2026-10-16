@@ -201,13 +201,44 @@ mod web_preview;
 
 const WEB_FORMATS: [(&str, &str); 5] = [("gif", "GIF"), ("png8", "PNG-8"), ("png24", "PNG-24"), ("jpeg", "JPEG"), ("wbmp", "WBMP")];
 const WEB_COMMAND: &str = "file.export.saveForWebLegacy";
+/// The preferences' `dialogs` key of the preview's view tab and zoom, kept apart from the
+/// export settings: those are remembered by a successful export, these whenever the dialog
+/// closes.
+const WEB_VIEW_PREF: &str = "file.export.saveForWebLegacy.view";
+const WEB_VIEWS: [&str; 4] = ["original", "optimized", "2up", "4up"];
+
+/// The view tab and zoom the dialog last closed with. A first open shows the Optimized pane at
+/// 100%, one image pixel to a screen pixel, to judge the compression; a remembered Fit (`null`
+/// zoom) fits again.
+fn restore_web_view(app: &PhotocraftApp, f: &mut Map<String, Value>) {
+    let saved = app.session.prefs().dialogs.get(WEB_VIEW_PREF);
+    let view = saved.and_then(|v| v.get("view")).and_then(Value::as_str).filter(|v| WEB_VIEWS.contains(v)).unwrap_or("optimized");
+    let zoom = match saved.and_then(|v| v.get("zoom")) {
+        Some(Value::Null) => Value::Null,
+        Some(z) => z.as_f64().filter(|z| z.is_finite() && *z > 0.0).map_or(json!(1.0), |z| json!(z.clamp(0.0001, 32.0))),
+        None => json!(1.0),
+    };
+    f.insert("__view".into(), json!(view));
+    f.insert("__zoom".into(), zoom);
+}
+
+/// Remember the view tab and zoom of a Save for Web dialog that is closing, by Save or Cancel.
+pub fn closed(app: &mut PhotocraftApp, f: &Map<String, Value>) {
+    if !f.contains_key("__web") {
+        return;
+    }
+    let view = json!({"view": s(f, "__view", "optimized"), "zoom": f.get("__zoom").cloned().unwrap_or(Value::Null)});
+    if app.session.prefs().dialogs.get(WEB_VIEW_PREF) != Some(&view) {
+        app.session.prefs.edit(|p| p.dialogs.insert(WEB_VIEW_PREF.into(), view));
+    }
+}
 
 pub fn open_web(app: &mut PhotocraftApp) -> u64 {
     let mut f = Map::new();
     f.insert("__web".into(), json!(true));
     f.insert("__command".into(), json!(WEB_COMMAND));
     f.insert("__label".into(), json!("Save for Web (Legacy)"));
-    f.insert("__view".into(), json!("2up"));
+    restore_web_view(app, &mut f);
     // Remember encoding choices, but each document starts at its own full size. This session's
     // last export lives in `file_menu`; the last one before a restart comes from the
     // preferences' remembered dialog settings (`web_cmds::remember_web_settings`).
@@ -481,7 +512,7 @@ fn web_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<String, Valu
     let t = Tokens::get(ui.ctx());
     let Some(doc) = app.session.active().map(|d| d.doc.clone()) else { return };
     ui.horizontal(|ui| {
-        let mut view = s(f, "__view", "2up");
+        let mut view = s(f, "__view", "optimized");
         for (k, l) in [("original", tl!("Original")), ("optimized", tl!("Optimized")), ("2up", "2-Up"), ("4up", "4-Up")] {
             if ui.selectable_label(view == k, tl!(&l)).clicked() {
                 view = k.into();
@@ -502,7 +533,7 @@ fn web_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<String, Valu
         // Previews grow with the dialog; settings retain their compact width.
         ui.vertical(|ui| {
             ui.set_width(area.x);
-            match s(f, "__view", "2up").as_str() {
+            match s(f, "__view", "optimized").as_str() {
                 "original" => web_pane(app, ui, area, None, f, 0, frame),
                 "optimized" => web_pane(app, ui, area, Some(&p), f, 1, frame),
                 "2up" => {
@@ -1218,6 +1249,33 @@ mod tests {
         let f = &app.ui.dialog_mut(id).unwrap().fields;
         assert_eq!(f["format"], "png8");
         assert_eq!(f["colors"], 64);
+    }
+
+    /// The view tab and zoom come back as the dialog last closed, by Cancel too, and survive a
+    /// restart through the preferences; a first open is Optimized at 100%.
+    #[test]
+    fn save_for_web_remembers_its_view_and_zoom() {
+        let (mut app, _) = app();
+        let id = open_web(&mut app);
+        let f = &mut app.ui.dialog_mut(id).unwrap().fields;
+        assert_eq!((&f["__view"], &f["__zoom"]), (&json!("optimized"), &json!(1.0)));
+        f.insert("__view".into(), json!("4up"));
+        f.insert("__zoom".into(), json!(2.0));
+        crate::dialogs::cancel(&mut app, id).unwrap();
+        assert_eq!(app.session.prefs().dialogs[WEB_VIEW_PREF], json!({"view": "4up", "zoom": 2.0}));
+        let id = open_web(&mut app);
+        let f = &mut app.ui.dialog_mut(id).unwrap().fields;
+        assert_eq!((&f["__view"], &f["__zoom"]), (&json!("4up"), &json!(2.0)));
+        // Fit is remembered as Fit; an unknown tab or a bad zoom falls back to the defaults.
+        f.insert("__zoom".into(), Value::Null);
+        crate::dialogs::cancel(&mut app, id).unwrap();
+        let id = open_web(&mut app);
+        assert_eq!(app.ui.dialog_mut(id).unwrap().fields["__zoom"], Value::Null);
+        crate::dialogs::cancel(&mut app, id).unwrap();
+        app.session.prefs.edit(|p| p.dialogs.insert(WEB_VIEW_PREF.into(), json!({"view": "6up", "zoom": -1})));
+        let id = open_web(&mut app);
+        let f = &app.ui.dialog_mut(id).unwrap().fields;
+        assert_eq!((&f["__view"], &f["__zoom"]), (&json!("optimized"), &json!(1.0)));
     }
 
     #[test]
