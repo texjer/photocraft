@@ -152,6 +152,21 @@ pub fn decode_gif_frames(bytes: &[u8], opts: &DecodeOptions) -> Result<Vec<Anima
     crate::codecs::gif_frames::decode(bytes, opts)
 }
 
+/// Decodes every frame of an animated WebP the same way (a still WebP yields one).
+pub fn decode_webp_frames(bytes: &[u8], opts: &DecodeOptions) -> Result<Vec<AnimationFrame>, CodecError> {
+    crate::codecs::webp_frames::decode(bytes, opts)
+}
+
+/// Every frame of a GIF or WebP ([`decode_gif_frames`], [`decode_webp_frames`]); `None` for a
+/// format that has no frames to walk.
+pub fn decode_frames(bytes: &[u8], opts: &DecodeOptions) -> Option<Result<Vec<AnimationFrame>, CodecError>> {
+    match detect(bytes)? {
+        Format::Gif => Some(decode_gif_frames(bytes, opts)),
+        Format::WebP => Some(decode_webp_frames(bytes, opts)),
+        _ => None,
+    }
+}
+
 /// The Orientation (1–8) of the page [`decode`] opens from a TIFF or BigTIFF file; 1 when it is
 /// absent, malformed or out of range.
 pub fn tiff_orientation(bytes: &[u8]) -> u16 {

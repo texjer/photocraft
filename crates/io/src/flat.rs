@@ -21,9 +21,9 @@ pub fn import_flat(name: &str, bytes: &[u8]) -> Result<ImportResult, IoError> {
     if format == Some(Format::Tiff) {
         return import_tiff_page(name, bytes, None);
     }
-    // An animated GIF opens with every frame as its own layer, to edit by hand.
-    if format == Some(Format::Gif)
-        && let Some(r) = import_gif_layers(name, bytes)?
+    // An animated GIF or WebP opens with every frame as its own layer, to edit by hand.
+    if matches!(format, Some(Format::Gif | Format::WebP))
+        && let Some(r) = import_animation_layers(name, bytes)?
     {
         return Ok(r);
     }
@@ -76,13 +76,19 @@ fn gif_layer_frames(bytes: &[u8]) -> usize {
     usize::try_from(MAX_GIF_LAYER_BYTES / per_frame).unwrap_or(usize::MAX).clamp(2, MAX_GIF_LAYER_FRAMES)
 }
 
-/// An animated GIF as one document with a raster layer per frame ("Frame 1" at the bottom), each
-/// a full picture of the canvas, and a frame animation that shows one layer per frame with the
-/// GIF's delays. `None` for a still GIF, which opens as any flat image does.
-fn import_gif_layers(name: &str, bytes: &[u8]) -> Result<Option<ImportResult>, IoError> {
-    // Only the first frames are decoded: each is a full-canvas picture, and every frame hides all the
-    // other layers, so the animation grows with the square of the frame count.
-    let (frames, more) = codecs::decode_gif_frames_prefix(bytes, &codecs::DecodeOptions::default(), gif_layer_frames(bytes))?;
+/// An animated GIF or WebP as one document with a raster layer per frame ("Frame 1" at the
+/// bottom), each a full picture of the canvas, and a frame animation that shows one layer per
+/// frame with the file's delays. `None` for a still image, which opens as any flat image does.
+fn import_animation_layers(name: &str, bytes: &[u8]) -> Result<Option<ImportResult>, IoError> {
+    let gif = codecs::detect(bytes) == Some(Format::Gif);
+    // Only a GIF's first frames are decoded: each is a full-canvas picture, and every frame hides all
+    // the other layers, so the animation grows with the square of the frame count.
+    let (frames, more) = if gif {
+        codecs::decode_gif_frames_prefix(bytes, &codecs::DecodeOptions::default(), gif_layer_frames(bytes))?
+    } else {
+        let Some(frames) = codecs::decode_frames(bytes, &codecs::DecodeOptions::default()) else { return Ok(None) };
+        (frames?, false)
+    };
     if frames.len() < 2 {
         return Ok(None);
     }
@@ -119,7 +125,7 @@ fn import_gif_layers(name: &str, bytes: &[u8]) -> Result<Option<ImportResult>, I
                 })
                 .collect(),
             current: 0,
-            loops: gif_loop_count(bytes),
+            loops: if gif { gif_loop_count(bytes) } else { photocraft_doc::LoopCount::Forever },
         };
         animation.apply(0, &mut doc.layers);
         doc.frame_animation = Some(animation);
@@ -175,11 +181,11 @@ fn gif_loop_count(bytes: &[u8]) -> photocraft_doc::LoopCount {
     scan(bytes).unwrap_or(LoopCount::Once)
 }
 
-/// Every frame of a GIF as a single-layer document, handed to `each` in order with its delay in
-/// milliseconds (a still GIF has one). One frame at a time becomes a document, so the caller
+/// Every frame of a GIF or WebP as a single-layer document, handed to `each` in order with its delay in
+/// milliseconds (a still image has one). One frame at a time becomes a document, so the caller
 /// can flatten and drop it. Returns the number of frames; stops at the first error `each` gives.
-pub fn import_gif_frames(name: &str, bytes: &[u8], each: &mut dyn FnMut(Document, u32) -> Result<(), IoError>) -> Result<usize, IoError> {
-    let frames = codecs::decode_gif_frames(bytes, &codecs::DecodeOptions::default())?;
+pub fn import_animation_frames(name: &str, bytes: &[u8], each: &mut dyn FnMut(Document, u32) -> Result<(), IoError>) -> Result<usize, IoError> {
+    let frames = codecs::decode_frames(bytes, &codecs::DecodeOptions::default()).ok_or(codecs::CodecError::UnknownFormat)??;
     let n = frames.len();
     for f in frames {
         each(image_to_document(name, &f.image)?.document, f.delay_ms)?;
