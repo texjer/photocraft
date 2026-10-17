@@ -200,3 +200,64 @@ fn clicking_the_other_field_keeps_the_delay_menu_open_for_typing() {
     assert_eq!(anim(&h).frames[0].delay_ms, 1500);
     assert!(h.query_by_label("Other…").is_none(), "Enter applies it and closes the menu");
 }
+
+/// A click on frame cell `i` with `mods` held.
+fn click_cell(h: &mut Harness<'static, PhotocraftApp>, r: egui::Rect, i: usize, mods: egui::Modifiers) {
+    let at = egui::pos2(r.left() + 42.0 + i as f32 * 90.0, r.top() + 62.0);
+    h.event(egui::Event::ModifiersChanged(mods));
+    h.event(egui::Event::PointerMoved(at));
+    h.run_steps(1);
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: mods });
+        h.run_steps(1);
+    }
+    h.event(egui::Event::ModifiersChanged(egui::Modifiers::NONE));
+    h.run_steps(2);
+}
+
+#[test]
+fn shift_and_command_clicks_select_several_frames() {
+    let mut h = harness();
+    let r = hover_panel(&mut h);
+    click_cell(&mut h, r, 0, egui::Modifiers::NONE);
+    assert_eq!(anim(&h).selection(), [0]);
+    click_cell(&mut h, r, 2, egui::Modifiers::SHIFT);
+    assert_eq!(anim(&h).selection(), [0, 1, 2]);
+    click_cell(&mut h, r, 1, egui::Modifiers::COMMAND);
+    assert_eq!(anim(&h).selection(), [0, 2]);
+    click_cell(&mut h, r, 1, egui::Modifiers::NONE);
+    assert_eq!(anim(&h).selection(), [1], "a plain click selects one frame");
+}
+
+#[test]
+fn a_selected_frames_delay_menu_sets_every_selected_frame() {
+    let mut h = harness();
+    hover_panel(&mut h);
+    h.state_mut().run("animation.selectFrame", json!({"frame": 1})).unwrap();
+    h.state_mut().run("animation.selectFrame", json!({"frame": 2, "extend": "range"})).unwrap();
+    h.run_steps(2);
+    h.get_all_by_label_contains("0.2 sec.").nth(1).unwrap().click();
+    h.run_steps(3);
+    h.get_by_label("1 sec.").click();
+    h.run_steps(3);
+    let delays: Vec<u32> = anim(&h).frames.iter().map(|f| f.delay_ms).collect();
+    assert_eq!(delays, [200, 1000, 1000]);
+}
+
+#[test]
+fn copy_takes_every_selected_frame_and_delete_removes_them() {
+    let mut h = harness();
+    hover_panel(&mut h);
+    h.state_mut().run("animation.selectFrame", json!({"frame": 0})).unwrap();
+    h.state_mut().run("animation.selectFrame", json!({"frame": 1, "extend": "range"})).unwrap();
+    h.event(egui::Event::Copy);
+    h.run_steps(2);
+    assert_eq!(h.state().ui.timeline.clipboard.len(), 2);
+    h.key_press(egui::Key::Delete);
+    h.run_steps(2);
+    assert_eq!(anim(&h).frames.len(), 1);
+    h.state_mut().run("animation.selectAllFrames", json!({})).unwrap();
+    h.key_press(egui::Key::Delete);
+    h.run_steps(2);
+    assert!(h.state().session.active().unwrap().doc.frame_animation.is_some(), "Delete never takes the last frame");
+}

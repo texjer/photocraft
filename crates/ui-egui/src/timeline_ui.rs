@@ -188,8 +188,8 @@ fn pointer_over(app: &PhotocraftApp, ctx: &egui::Context) -> bool {
 
 /// Keys for the Timeline, while the pointer is over it (and no text field has the keyboard):
 /// Space plays or pauses; ← → step the selected frame, Home / End jump to the first / last;
-/// ⌥← ⌥→ move the selected frame; ⌘C copies it and ⌘V pastes it after the selected frame;
-/// Delete removes it. True when a key was taken.
+/// ⌥← ⌥→ move the selected frame; ⌘C copies the selected frames and ⌘V pastes them after the
+/// shown frame; Delete removes the selected frames. True when a key was taken.
 pub fn keys(app: &mut PhotocraftApp, ctx: &egui::Context) -> bool {
     use egui::{Key, Modifiers};
     if !pointer_over(app, ctx) {
@@ -214,7 +214,7 @@ pub fn keys(app: &mut PhotocraftApp, ctx: &egui::Context) -> bool {
         })
     };
     if clip(ctx, true) | press(Modifiers::COMMAND, Key::C) {
-        app.ui.timeline.clipboard = a.frames.get(a.current).cloned().into_iter().collect();
+        app.ui.timeline.clipboard = a.selection().into_iter().filter_map(|i| a.frames.get(i).cloned()).collect();
         return true;
     }
     if clip(ctx, false) | press(Modifiers::COMMAND, Key::V) {
@@ -252,7 +252,7 @@ pub fn keys(app: &mut PhotocraftApp, ctx: &egui::Context) -> bool {
         act(app, ctx, "animation.selectFrame", json!({ "frame": frame }));
         return true;
     }
-    if (press(Modifiers::NONE, Key::Delete) || press(Modifiers::NONE, Key::Backspace)) && a.frames.len() > 1 {
+    if (press(Modifiers::NONE, Key::Delete) || press(Modifiers::NONE, Key::Backspace)) && a.frames.len() > a.selection().len() {
         act(app, ctx, "animation.deleteFrame", json!({}));
         return true;
     }

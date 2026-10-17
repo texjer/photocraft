@@ -163,14 +163,15 @@ impl Document {
         }
     }
 
-    /// Selects frame `index` of the animation and shows it on the layers. False (and nothing
-    /// changed) with no animation or no such frame.
+    /// Selects frame `index` of the animation alone and shows it on the layers. False (and
+    /// nothing changed) with no animation or no such frame.
     pub fn select_animation_frame(&mut self, index: usize) -> bool {
         let Some(a) = &mut self.frame_animation else { return false };
         if !a.apply(index, &mut self.layers) {
             return false;
         }
         a.current = index;
+        a.selected.clear();
         true
     }
 }

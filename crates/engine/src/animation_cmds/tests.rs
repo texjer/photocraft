@@ -214,3 +214,82 @@ fn pasting_drops_layers_the_document_lacks_and_rejects_bad_params() {
     }
     assert_eq!(delays(&s).len(), 2);
 }
+
+fn selection(s: &Session) -> Vec<usize> {
+    doc(s).frame_animation.as_ref().unwrap().selection()
+}
+
+/// Five frames, 100 ms apart (100, 200 … 500), so each frame is known by its delay.
+fn five_frames() -> Session {
+    let mut s = session(&["A", "B", "C", "D"]);
+    s.execute("animation.makeFramesFromLayers", json!({})).unwrap();
+    for i in 0..5u64 {
+        s.execute("animation.setDelay", json!({"delayMs": (i + 1) * 100, "frames": [i]})).unwrap();
+    }
+    s
+}
+
+#[test]
+fn shift_spans_from_the_shown_frame_and_command_toggles() {
+    let mut s = five_frames();
+    s.execute("animation.selectFrame", json!({"frame": 1})).unwrap();
+    s.execute("animation.selectFrame", json!({"frame": 3, "extend": "range"})).unwrap();
+    assert_eq!((selection(&s), current(&s)), (vec![1, 2, 3], 1), "the anchor stays shown");
+    // Another Shift-click re-spans from the same anchor.
+    s.execute("animation.selectFrame", json!({"frame": 0, "extend": "range"})).unwrap();
+    assert_eq!(selection(&s), [0, 1]);
+    s.execute("animation.selectFrame", json!({"frame": 4, "extend": "toggle"})).unwrap();
+    assert_eq!((selection(&s), current(&s)), (vec![0, 1, 4], 4), "⌘-click adds a frame and shows it");
+    assert_eq!(shown(&s)[4], ("D".into(), true));
+    s.execute("animation.selectFrame", json!({"frame": 4, "extend": "toggle"})).unwrap();
+    assert_eq!((selection(&s), current(&s)), (vec![0, 1], 1), "taking out the shown frame shows a neighbour");
+    assert_eq!(shown(&s)[1], ("A".into(), true));
+    s.execute("animation.selectFrame", json!({"frame": 1, "extend": "toggle"})).unwrap();
+    s.execute("animation.selectFrame", json!({"frame": 0, "extend": "toggle"})).unwrap();
+    assert_eq!(selection(&s), [0], "the last selected frame can't be taken out");
+    s.execute("animation.selectAllFrames", json!({})).unwrap();
+    assert_eq!((selection(&s), current(&s)), (vec![0, 1, 2, 3, 4], 0));
+    let r = s.execute("animation.info", json!({})).unwrap();
+    assert_eq!(r["animation"]["selected"], json!([0, 1, 2, 3, 4]));
+    s.execute("animation.nextFrame", json!({})).unwrap();
+    assert_eq!(selection(&s), [1], "stepping selects one frame");
+    assert!(s.execute("animation.selectFrame", json!({"frame": 0, "extend": "all"})).is_err());
+}
+
+#[test]
+fn delete_duplicate_delay_and_reverse_act_on_every_selected_frame() {
+    let mut s = five_frames();
+    s.execute("animation.selectFrame", json!({"frame": 1})).unwrap();
+    s.execute("animation.selectFrame", json!({"frame": 3, "extend": "toggle"})).unwrap();
+    s.execute("animation.setDelay", json!({"delayMs": 50})).unwrap();
+    assert_eq!(delays(&s), [100, 50, 300, 50, 500]);
+    s.execute("edit.undo", json!({})).unwrap();
+
+    s.execute("animation.newFrame", json!({})).unwrap();
+    assert_eq!(delays(&s), [100, 200, 300, 400, 200, 400, 500], "copies go after the last selected frame");
+    assert_eq!((selection(&s), current(&s)), (vec![4, 5], 5), "the copies are selected; the shown one's copy shows");
+    s.execute("edit.undo", json!({})).unwrap();
+
+    s.execute("animation.reverseFrames", json!({})).unwrap();
+    assert_eq!(delays(&s), [100, 400, 300, 200, 500], "selected frames swap among their places");
+    assert_eq!(current(&s), 1, "the shown frame follows its frame");
+    s.execute("edit.undo", json!({})).unwrap();
+
+    s.execute("animation.deleteFrame", json!({})).unwrap();
+    assert_eq!(delays(&s), [100, 300, 500]);
+    assert_eq!((selection(&s), current(&s)), (vec![1], 1), "the frame after the first deleted one is shown");
+    s.execute("animation.selectAllFrames", json!({})).unwrap();
+    assert!(s.execute("animation.deleteFrame", json!({})).is_err(), "one frame always stays");
+    s.execute("animation.deleteFrame", json!({"frame": 0})).unwrap();
+    assert_eq!(delays(&s), [300, 500], "`frame` deletes just that one");
+}
+
+#[test]
+fn pasting_several_frames_selects_them_and_a_move_narrows_the_selection() {
+    let mut s = five_frames();
+    let frames = json!([{"delayMs": 7}, {"delayMs": 8}]);
+    s.execute("animation.pasteFrames", json!({"frames": frames, "after": 0})).unwrap();
+    assert_eq!((selection(&s), current(&s)), (vec![1, 2], 2));
+    s.execute("animation.moveFrame", json!({"from": 2, "to": 0})).unwrap();
+    assert_eq!((selection(&s), current(&s)), (vec![0], 0));
+}

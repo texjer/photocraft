@@ -161,12 +161,12 @@ fn key(label: &str) -> String {
 }
 
 /// The engine's own candidates: every command in a menu (the engine's, then the shell's), in
-/// command order.
+/// command order, and the Timeline panel menu's ([`crate::animation_cmds::PANEL_MENU`]).
 pub fn command_candidates() -> Vec<Candidate> {
     let engine = crate::command_specs().iter().map(|c| (c.id, c.label, c.menu, c.shortcut));
     engine
         .chain(crate::shell_commands::SHELL_COMMANDS.iter().copied())
-        .filter(|c| !c.2.is_empty())
+        .filter(|c| !c.2.is_empty() || crate::animation_cmds::PANEL_MENU.contains(&c.0))
         .map(|(id, label, _, default)| Candidate { id: id.to_string(), label: label.to_string(), default: default.map(str::to_string) })
         .collect()
 }

@@ -60,7 +60,7 @@ fn with_cache<R>(ctx: &egui::Context, f: impl FnOnce(&mut StripCache) -> R) -> R
 
 /// Records that `cmd` just ran: a command that only moves the selected frame keeps the thumbnails.
 pub fn ran(app: &crate::PhotocraftApp, ctx: &egui::Context, cmd: &str) {
-    if matches!(cmd, "animation.selectFrame" | "animation.nextFrame" | "animation.previousFrame")
+    if matches!(cmd, "animation.selectFrame" | "animation.selectAllFrames" | "animation.nextFrame" | "animation.previousFrame")
         && let Some(st) = app.session.active()
     {
         let rev = st.revision;
@@ -174,6 +174,22 @@ pub fn move_target(from: usize, slot: usize) -> usize {
     if slot > from { slot - 1 } else { slot }
 }
 
+/// What a click on frame `frame` asks for: Shift spans from the selected frame, ⌘ (Ctrl off the
+/// Mac) adds or removes it, a plain click selects it alone.
+pub fn click_act(frame: usize, mods: egui::Modifiers) -> Act {
+    let extend = if mods.shift {
+        Some("range")
+    } else if mods.command {
+        Some("toggle")
+    } else {
+        None
+    };
+    match extend {
+        Some(e) => ("animation.selectFrame", json!({ "frame": frame, "extend": e })),
+        None => ("animation.selectFrame", json!({ "frame": frame })),
+    }
+}
+
 /// Id of the frame being dragged, kept in egui memory between frames.
 fn drag_id() -> egui::Id {
     egui::Id::new("frame-strip-drag")
@@ -210,7 +226,8 @@ pub fn body(ui: &mut egui::Ui, ctx: &egui::Context, strip: Strip<'_>) {
             for (i, frame) in a.frames.iter().enumerate() {
                 ui.vertical(|ui| {
                     ui.set_width(CELL_W);
-                    let selected = i == a.current;
+                    let selected = a.is_selected(i);
+                    let shown = i == a.current;
                     let (rect, resp) = ui.allocate_exact_size(vec2(CELL_W, 66.0), Sense::click_and_drag());
                     cells.push(rect);
                     let fill = if selected { t.accent_soft } else { t.field };
@@ -225,9 +242,13 @@ pub fn body(ui: &mut egui::Ui, ctx: &egui::Context, strip: Strip<'_>) {
                     }
                     ui.painter().text(rect.left_top() + vec2(4.0, 2.0), Align2::LEFT_TOP, (i + 1).to_string(), FontId::monospace(11.0), t.text);
                     if selected {
-                        ui.painter().rect_stroke(rect, t.radius_sm, Stroke::new(2.0, t.accent), StrokeKind::Inside);
+                        // The frame the canvas shows has the heavier outline.
+                        ui.painter().rect_stroke(rect, t.radius_sm, Stroke::new(if shown { 2.0 } else { 1.0 }, t.accent), StrokeKind::Inside);
                     }
-                    if resp.clicked() || (resp.drag_started() && !selected) {
+                    let mods = ui.input(|i| i.modifiers);
+                    if resp.clicked() {
+                        acts.push(click_act(i, mods));
+                    } else if resp.drag_started() && !selected {
                         acts.push(("animation.selectFrame", json!({ "frame": i })));
                     }
                     if resp.drag_started() {
@@ -237,7 +258,9 @@ pub fn body(ui: &mut egui::Ui, ctx: &egui::Context, strip: Strip<'_>) {
                         // The frame being carried stays put, dimmed, until it is dropped.
                         ui.painter().rect_filled(rect, t.radius_sm, t.chrome.gamma_multiply(0.5));
                     }
-                    delay_menu(ui, i, frame.delay_ms, acts);
+                    // A selected frame's delay menu sets every selected frame's delay.
+                    let targets = if selected { a.selection() } else { vec![i] };
+                    delay_menu(ui, &targets, frame.delay_ms, acts);
                 });
                 ui.add_space(2.0);
             }
@@ -275,8 +298,9 @@ pub fn body(ui: &mut egui::Ui, ctx: &egui::Context, strip: Strip<'_>) {
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if crate::icons::button(ui, "trash", 22.0, false, tl!("Delete Selected Frame")).clicked() {
-                // The last frame can't go: deleting it removes the animation, as Photoshop's does.
-                let cmd = if a.frames.len() > 1 { "animation.deleteFrame" } else { "animation.delete" };
+                // The last frame can't go: deleting every frame removes the animation, as
+                // Photoshop's does.
+                let cmd = if a.frames.len() > a.selection().len() { "animation.deleteFrame" } else { "animation.delete" };
                 acts.push((cmd, json!({})));
             }
             if crate::icons::button(ui, "copy", 22.0, false, tl!("Duplicate Selected Frame")).clicked() {
@@ -350,11 +374,12 @@ fn drop_menu(ui: &mut egui::Ui, label: &str, add_contents: impl FnOnce(&mut egui
     ui.painter().add(egui::Shape::convex_polygon(vec![c + vec2(-3.5, -2.0), c + vec2(3.5, -2.0), c + vec2(0.0, 2.5)], t.text_dim, Stroke::NONE));
 }
 
-/// A frame's delay button and its menu: the presets, then a field for any other value.
-fn delay_menu(ui: &mut egui::Ui, frame: usize, delay_ms: u32, acts: &mut Vec<Act>) {
+/// A frame's delay button and its menu: the presets, then a field for any other value. A choice
+/// sets the delay of every frame in `frames`.
+fn delay_menu(ui: &mut egui::Ui, frames: &[usize], delay_ms: u32, acts: &mut Vec<Act>) {
     drop_menu(ui, &delay_label(delay_ms), |ui| {
         let mut set = |ui: &mut egui::Ui, ms: u32| {
-            acts.push(("animation.setDelay", json!({ "delayMs": ms, "frames": [frame] })));
+            acts.push(("animation.setDelay", json!({ "delayMs": ms, "frames": frames })));
             ui.close();
         };
         if ui.selectable_label(delay_ms == 0, tl!("No delay")).clicked() {
@@ -480,6 +505,14 @@ mod tests {
         // Dropping beside itself changes nothing; dropping past it lands one earlier.
         assert_eq!((move_target(1, 1), move_target(1, 2)), (1, 1));
         assert_eq!((move_target(0, 3), move_target(2, 0)), (2, 0));
+    }
+
+    #[test]
+    fn shift_spans_and_command_toggles() {
+        use egui::Modifiers;
+        assert_eq!(click_act(2, Modifiers::NONE).1, json!({ "frame": 2 }));
+        assert_eq!(click_act(2, Modifiers::SHIFT).1, json!({ "frame": 2, "extend": "range" }));
+        assert_eq!(click_act(2, Modifiers::COMMAND).1, json!({ "frame": 2, "extend": "toggle" }));
     }
 
     #[test]

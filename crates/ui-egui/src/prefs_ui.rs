@@ -775,6 +775,11 @@ pub fn shortcut_items(app: &PhotocraftApp) -> Vec<(String, String, Vec<String>, 
     let mut tools = Vec::new();
     let mut layer = Vec::new();
     for c in photocraft_engine::command_specs() {
+        if photocraft_engine::animation_cmds::PANEL_MENU.contains(&c.id) && seen.insert(c.id.to_string()) {
+            // The Timeline panel menu's commands, which have no key by default.
+            out.push((c.id.to_string(), c.label.to_string(), vec!["Window".into(), "Timeline".into()], c.shortcut.map(Into::into)));
+            continue;
+        }
         if seen.insert(c.id.to_string()) && c.shortcut.is_some() {
             let item = (c.id.to_string(), c.label.to_string(), c.menu.iter().map(|s| s.to_string()).collect::<Vec<_>>(), c.shortcut.map(Into::into));
             if c.menu.is_empty() && tools_key(c.id) {

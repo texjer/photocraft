@@ -355,3 +355,25 @@ fn a_windows_set_with_tool_keys_imports_as_photoshop_meant_it() {
     crate::dialogs::confirm(&mut app, id).unwrap();
     assert_eq!(crate::tool_shortcuts::shortcut(&app, crate::state::Tool::Pencil).as_deref(), Some("N"));
 }
+
+#[test]
+fn photoshops_timeline_panel_rows_import_onto_the_frame_strip() {
+    let set = parse(
+        "<photoshop-keyboard-shortcuts version=\"4\">
+\t<command kind=\"static\" id=\"4460\" name=\"New Frame\"><shortcut>Control+Opt+Cmd+=</shortcut></command>
+\t<command kind=\"static\" id=\"4465\" name=\"Select All Frames\"><shortcut>Control+Opt+Cmd+/</shortcut></command>
+\t<command kind=\"static\" id=\"4483\" name=\"Next Frame\"><shortcut>Control+Opt+Cmd+]</shortcut></command>
+\t<command kind=\"static\" id=\"4484\" name=\"Previous Frame\"><shortcut>Control+Opt+Cmd+[</shortcut></command>
+</photoshop-keyboard-shortcuts>",
+    )
+    .unwrap();
+    let p = plan(&app(), &set);
+    assert!(p.unknown.is_empty(), "{:?}", p.unknown);
+    for id in ["animation.newFrame", "animation.selectAllFrames", "animation.nextFrame", "animation.previousFrame"] {
+        assert!(p.set.contains_key(id), "{id}: {:?}", p.set);
+    }
+    // Edit › Keyboard Shortcuts lists them, so the import has rows to fill.
+    let items = crate::prefs_ui::shortcut_items(&app());
+    let row = items.iter().find(|i| i.0 == "animation.selectAllFrames").expect("listed");
+    assert_eq!(row.2, ["Window", "Timeline"]);
+}
