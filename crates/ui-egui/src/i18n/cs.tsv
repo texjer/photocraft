@@ -3925,3 +3925,5 @@ navigator	Zoom	Zvětšení
 	GPU adapter	Adaptér GPU
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	Soubory AVIF neobsahují barevný profil ani metadata.
+	Animate	Animovat
+	Saves all {frames} frames as an animated AVIF.	Uloží všech {frames} snímků jako animovaný AVIF.

@@ -3805,3 +3805,5 @@ curves	Smooth	Làm mượt
 	GPU adapter	Bộ điều hợp GPU
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	Tệp AVIF không chứa hồ sơ màu hay siêu dữ liệu.
+	Animate	Tạo chuyển động
+	Saves all {frames} frames as an animated AVIF.	Lưu tất cả {frames} khung hình thành AVIF động.

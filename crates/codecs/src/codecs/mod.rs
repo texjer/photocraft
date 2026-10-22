@@ -1,6 +1,8 @@
 pub(crate) mod avif;
 #[cfg(feature = "avif")]
 pub(crate) mod avif_boxes;
+#[cfg(feature = "avif")]
+pub(crate) mod avif_anim;
 pub(crate) mod dds;
 pub(crate) mod dds_bc;
 pub(crate) mod deep_exr;

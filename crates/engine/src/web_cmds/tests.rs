@@ -1120,3 +1120,39 @@ fn save_for_web_writes_a_gif_of_a_frame_animation_as_an_animation() {
     s.execute("file.export.saveForWebLegacy", json!({"format": "gif", "path": format!("{dir}/still.gif")})).unwrap();
     assert_eq!(gif_frames(&format!("{dir}/still.gif")).len(), 1);
 }
+
+/// A frame animation saves as one animated AVIF: every frame with its delay, and the dialog's
+/// estimate counts them. Animate off saves the frame on screen as a still.
+#[test]
+fn a_frame_animation_saves_as_an_animated_avif() {
+    if !super::WebFormat::Avif.available() {
+        return;
+    }
+    let dir = tmp("avif-anim");
+    let mut s = session(8);
+    // Frame 1 the transparent background alone, frame 2 the red logo alone; three plays.
+    s.execute("animation.makeFramesFromLayers", json!({"seconds": 0.2})).unwrap();
+    s.execute("animation.setLoop", json!({"loops": 3})).unwrap();
+    let path = format!("{dir}/anim.avif");
+    let r = s.execute("file.export.saveForWebLegacy", json!({"format": "avif", "quality": 90, "path": path})).unwrap();
+    assert_eq!(r["frames"], 2, "{r}");
+    let bytes = std::fs::read(&path).unwrap();
+    assert_eq!(&bytes[8..12], b"avis", "an image sequence");
+    let frames = photocraft_codecs::decode_avif_frames(&bytes, &Default::default()).unwrap();
+    assert_eq!(frames.iter().map(|f| f.delay_ms).collect::<Vec<_>>(), [200, 200]);
+    let px = |f: &photocraft_codecs::AnimationFrame| {
+        let img = f.image.convert(photocraft_codecs::ChannelLayout::Rgba, photocraft_codecs::SampleType::U8);
+        let i = (16 * 64 + 16) * 4;
+        img.data()[i..i + 4].to_vec()
+    };
+    assert!(px(&frames[0])[3] < 8, "frame 1 shows the transparent background: {:?}", px(&frames[0]));
+    let red = px(&frames[1]);
+    assert!(red[0] > 240 && red[1] < 16 && red[3] > 248, "frame 2 shows the logo: {red:?}");
+    // The dialog's estimate is the whole animation's size.
+    let est = s.execute("file.export.saveForWebLegacy", json!({"format": "avif", "quality": 90})).unwrap();
+    assert_eq!((est["frames"].as_u64(), est["bytes"].as_u64()), (Some(2), Some(bytes.len() as u64)));
+    // Animate off: the frame on screen, as a still AVIF.
+    let still = format!("{dir}/still.avif");
+    s.execute("file.export.saveForWebLegacy", json!({"format": "avif", "quality": 90, "animate": false, "path": still})).unwrap();
+    assert_eq!(&std::fs::read(&still).unwrap()[8..12], b"avif");
+}

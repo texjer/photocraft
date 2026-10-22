@@ -3312,3 +3312,5 @@ curves	Smooth	Haluskan
 	GPU adapter	Adaptor GPU
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	File AVIF tidak membawa profil warna maupun metadata.
+	Animate	Animasikan
+	Saves all {frames} frames as an animated AVIF.	Menyimpan semua {frames} bingkai sebagai AVIF animasi.

@@ -80,3 +80,36 @@ fn cut_and_damaged_files_are_errors_not_panics() {
     }
 }
 
+/// Our animated AVIF writer, read back by our reader: every frame, its duration and its alpha.
+#[test]
+fn an_animated_avif_we_write_reads_back_frame_by_frame() {
+    use photocraft_codecs::web::{AvifFrame, encode_avif_animated};
+    let (w, h) = (24u32, 16u32);
+    let solid = |c: [u8; 4], delay_ms| AvifFrame { rgba: c.repeat((w * h) as usize), delay_ms };
+    let frames = [solid([255, 0, 0, 255], 80), solid([0, 200, 0, 255], 120), solid([0, 0, 255, 128], 0)];
+    let bytes = encode_avif_animated(w, h, &frames, 90, 10, 0).unwrap();
+    assert_eq!(detect(&bytes), Some(Format::Avif));
+    let back = decode_avif_frames(&bytes, &DecodeOptions::default()).unwrap();
+    assert_eq!(back.iter().map(|f| f.delay_ms).collect::<Vec<_>>(), [80, 120, 100], "a 0 delay is written as 100 ms");
+    for (f, want) in back.iter().zip(&frames) {
+        assert_eq!((f.image.width(), f.image.height(), f.image.layout()), (w, h, ChannelLayout::Rgba));
+        let (got, want) = (&f.image.data()[..4], &want.rgba[..4]);
+        assert!(got.iter().zip(want).all(|(a, b)| a.abs_diff(*b) <= 8), "{got:?} vs {want:?}");
+    }
+    // The still image is the first frame, for readers that don't play sequences.
+    assert!(near(rgb8(decode(&bytes).unwrap().data()), [255, 0, 0]));
+}
+
+#[test]
+fn an_opaque_animation_has_no_alpha_track() {
+    use photocraft_codecs::web::{AvifFrame, encode_avif_animated};
+    let frames: Vec<AvifFrame> = (0..4).map(|i| AvifFrame { rgba: [i * 60, 0, 0, 255].repeat(256), delay_ms: 50 }).collect();
+    let bytes = encode_avif_animated(16, 16, &frames, 70, 10, 2).unwrap();
+    let back = decode_avif_frames(&bytes, &DecodeOptions::default()).unwrap();
+    assert_eq!(back.len(), 4);
+    assert!(back.iter().all(|f| f.image.layout() == ChannelLayout::Rgb));
+    assert!(encode_avif_animated(16, 16, &[], 70, 10, 0).is_err());
+    assert!(encode_avif_animated(16, 16, &[AvifFrame { rgba: vec![0; 3], delay_ms: 0 }], 70, 10, 0).is_err());
+    let small: Vec<AvifFrame> = (0..2).map(|_| AvifFrame { rgba: vec![0; 8 * 8 * 4], delay_ms: 50 }).collect();
+    assert!(encode_avif_animated(8, 8, &small, 70, 10, 0).unwrap_err().to_string().contains("16"), "too small for rav1e");
+}

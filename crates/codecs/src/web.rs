@@ -254,6 +254,27 @@ pub fn encode_gif_animated_stepped(
     Ok(Some(out))
 }
 
+/// One frame of an animated AVIF: straight RGBA8 pixels of the whole canvas and how long it
+/// shows, in milliseconds (0 shows for 100 ms, as browsers play a GIF's 0).
+pub struct AvifFrame {
+    pub rgba: Vec<u8>,
+    pub delay_ms: u32,
+}
+
+/// Encode an animated AVIF (an `avis` image sequence, with the first frame also as the still
+/// image) at `quality` 1–100 and rav1e `speed` 0–10 (10 fastest). `loops` is how many times it
+/// plays, 0 for forever. Needs the `avif` feature; without it this is an
+/// [`CodecError::Unsupported`] error.
+pub fn encode_avif_animated(width: u32, height: u32, frames: &[AvifFrame], quality: u8, speed: u8, loops: u16) -> Result<Vec<u8>, CodecError> {
+    #[cfg(feature = "avif")]
+    return crate::codecs::avif_anim::encode(width, height, frames, quality, speed, loops);
+    #[cfg(not(feature = "avif"))]
+    {
+        let _ = (width, height, frames, quality, speed, loops);
+        Err(CodecError::unsupported(Format::Avif, "AVIF isn't included in this build of PhotoCraft"))
+    }
+}
+
 /// One frame of an animated WebP: straight RGBA8 pixels of the whole canvas and how long it
 /// shows, in milliseconds (WebP stores up to 2^24 − 1).
 pub struct WebpFrame {

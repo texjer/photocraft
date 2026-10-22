@@ -3992,3 +3992,5 @@ curves	Smooth	スムーズ
 	GPU adapter	GPU アダプター
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	AVIF ファイルにはカラープロファイルもメタデータも含まれません。
+	Animate	アニメーション
+	Saves all {frames} frames as an animated AVIF.	{frames} フレームすべてをアニメーション AVIF として保存します。

@@ -114,6 +114,9 @@ pub struct WebSettings {
     pub quality: u8,
     /// WebP: lossless instead of lossy at `quality`.
     pub lossless: bool,
+    /// AVIF: a document with a frame animation or a video timeline saves every frame as an
+    /// animated AVIF ([`animation_frames`]); off saves the frame on screen.
+    pub animate: bool,
     pub progressive: bool,
     pub optimized: bool,
     pub embed_icc: bool,
@@ -137,6 +140,7 @@ impl Default for WebSettings {
             web_snap: 0.0,
             quality: 60,
             lossless: false,
+            animate: true,
             progressive: false,
             optimized: true,
             embed_icc: false,
@@ -208,6 +212,7 @@ impl WebSettings {
             ("interlaced", &mut st.interlaced),
             ("progressive", &mut st.progressive),
             ("lossless", &mut st.lossless),
+            ("animate", &mut st.animate),
             ("optimized", &mut st.optimized),
             ("embedIcc", &mut st.embed_icc),
             ("convertToSrgb", &mut st.convert_to_srgb),
@@ -293,7 +298,7 @@ impl WebSettings {
             WebMetadata::All => "all",
         };
         let matte = self.matte.map_or("none".to_string(), |c| format!("#{:02x}{:02x}{:02x}", to8(c[0]), to8(c[1]), to8(c[2])));
-        let mut p = json!({"format": format, "palette": palette, "colors": self.colors, "dither": dither, "ditherAmount": (self.dither_amount * 100.0).round(), "transparency": self.transparency, "matte": matte, "interlaced": self.interlaced, "webSnap": (self.web_snap * 100.0).round(), "quality": self.quality, "lossless": self.lossless, "progressive": self.progressive, "optimized": self.optimized, "embedIcc": self.embed_icc, "metadata": metadata, "convertToSrgb": self.convert_to_srgb});
+        let mut p = json!({"format": format, "palette": palette, "colors": self.colors, "dither": dither, "ditherAmount": (self.dither_amount * 100.0).round(), "transparency": self.transparency, "matte": matte, "interlaced": self.interlaced, "webSnap": (self.web_snap * 100.0).round(), "quality": self.quality, "lossless": self.lossless, "animate": self.animate, "progressive": self.progressive, "optimized": self.optimized, "embedIcc": self.embed_icc, "metadata": metadata, "convertToSrgb": self.convert_to_srgb});
         if let Some(table) = &self.color_table {
             p["colorTable"] = json!(table.iter().map(|c| rgb_hex(*c)).collect::<Vec<_>>());
         }
@@ -386,6 +391,76 @@ pub fn web_document(doc: &Document, p: &Value, st: &WebSettings) -> Result<(Docu
     }
     let out = (*tmp.active().ok_or(EngineError::NoDocument)?.doc).clone();
     Ok((out, nw / w0, nh / h0))
+}
+
+/// The frames Save for Web plays as an animated AVIF, as [`web_document`] sees each: the
+/// document's frame animation (each frame's own delay, its loop count), else its video timeline
+/// (every frame at the timeline's rate, looping forever). Each frame is straight RGBA8, or RGB
+/// over the matte with full alpha when Transparency is off. `None` when the document is a still
+/// (no animation, or one frame) or when AVIF isn't the format or Animate is off.
+pub struct WebAnimation {
+    pub width: u32,
+    pub height: u32,
+    pub frames: Vec<photocraft_codecs::web::AvifFrame>,
+    /// Plays this many times, 0 for forever.
+    pub loops: u16,
+}
+
+pub fn animation_frames(doc: &Document, p: &Value, st: &WebSettings) -> Result<Option<WebAnimation>> {
+    if st.format != WebFormat::Avif || !st.animate {
+        return Ok(None);
+    }
+    let animation = doc.frame_animation.as_ref().filter(|a| a.frames.len() > 1);
+    let timeline = doc.timeline.as_ref().filter(|t| t.duration > 1);
+    if animation.is_none() && timeline.is_none() {
+        return Ok(None);
+    }
+    // Resized and converted once; each frame then only changes what shows.
+    let (wdoc, _, _) = web_document(doc, p, st)?;
+    let (w, h) = (wdoc.size.width, wdoc.size.height);
+    let matte = st.matte.unwrap_or([1.0, 1.0, 1.0]);
+    let rgba8 = |d: &Document| -> Vec<u8> {
+        let buf = photocraft_compose::flatten(d);
+        let mut out = Vec::with_capacity(buf.px.len() * 4);
+        for p in &buf.px {
+            let a = p[3];
+            let q = if st.transparency { *p } else { [p[0] * a + matte[0] * (1.0 - a), p[1] * a + matte[1] * (1.0 - a), p[2] * a + matte[2] * (1.0 - a), 1.0] };
+            out.extend_from_slice(&[to8(q[0]), to8(q[1]), to8(q[2]), to8(q[3])]);
+        }
+        out
+    };
+    let mut frames = Vec::new();
+    let loops = if let Some(a) = animation {
+        for (i, f) in a.frames.iter().enumerate() {
+            let mut d = wdoc.clone();
+            a.apply(i, &mut d.layers);
+            frames.push(photocraft_codecs::web::AvifFrame { rgba: rgba8(&d), delay_ms: f.delay_ms });
+        }
+        match a.loops {
+            photocraft_doc::LoopCount::Forever => 0,
+            photocraft_doc::LoopCount::Once => 1,
+            photocraft_doc::LoopCount::Times(n) => u16::try_from(n).unwrap_or(u16::MAX).max(1),
+        }
+    } else {
+        let Some(t) = wdoc.timeline.clone() else { return Ok(None) };
+        let mut tmp = Session::new();
+        tmp.add_document(wdoc, None);
+        let delay_ms = (1000.0 / f64::from(t.fps.max(0.01))).round() as u32;
+        for i in 0..t.duration {
+            tmp.execute("timeline.setFrame", json!({"frame": i}))?;
+            let d = tmp.active().ok_or(EngineError::NoDocument)?.doc.clone();
+            frames.push(photocraft_codecs::web::AvifFrame { rgba: rgba8(&d), delay_ms });
+        }
+        0
+    };
+    Ok(Some(WebAnimation { width: w, height: h, frames, loops }))
+}
+
+/// [`animation_frames`] encoded at the settings' Quality: an animated AVIF's bytes.
+fn animated_avif(doc: &Document, p: &Value, st: &WebSettings) -> Result<Option<Vec<u8>>> {
+    let Some(a) = animation_frames(doc, p, st)? else { return Ok(None) };
+    // rav1e speed 8, as the still AVIF writer uses.
+    photocraft_codecs::web::encode_avif_animated(a.width, a.height, &a.frames, st.quality.clamp(1, 100), 8, a.loops).map(Some).map_err(other)
 }
 
 /// An optimised image.
@@ -1053,6 +1128,23 @@ fn save_for_web_impl(s: &mut Session, p: &Value, write: &mut dyn FnMut(&str, &[u
     // with the dialog's remembered settings.
     if let Some(last) = last_web.as_object_mut() {
         last.remove("trustedSliceHtml");
+    }
+    // An animated AVIF holds every frame of the whole image (slices save the frame on screen).
+    let whole = single.is_some_and(|_| dir.is_none() && (all.len() == 1 || p.get("slices").is_none()));
+    let animated = if single.is_none() && dir.is_none() || whole { animated_avif(&doc, p, &st)? } else { None };
+    if let Some(bytes) = animated {
+        let (w, h) = (wdoc.size.width, wdoc.size.height);
+        let frames = doc.frame_animation.as_ref().map_or_else(|| doc.timeline.as_ref().map_or(1, |t| t.duration), |a| a.frames.len());
+        let Some(path) = single else {
+            return Ok(
+                json!({"format": "avif", "bytes": bytes.len(), "width": w, "height": h, "colors": null, "colorTable": [], "transparentIndex": null, "frames": frames}),
+            );
+        };
+        write(path, &bytes)?;
+        remember_web_settings(s, cmd, &last_web);
+        s.file_menu.last_web = Some(last_web);
+        crate::automate_cmds::fire_event(s, "export");
+        return Ok(json!({"files": [path], "bytes": bytes.len(), "width": w, "height": h, "colors": null, "frames": frames, "warnings": warnings}));
     }
     // Estimate only (the dialog's annotations): the whole image, or each chosen slice.
     if single.is_none() && dir.is_none() {

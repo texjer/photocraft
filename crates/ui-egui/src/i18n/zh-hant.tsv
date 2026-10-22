@@ -2934,3 +2934,5 @@ curves	Smooth	平滑
 	GPU adapter	GPU 介面卡
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	AVIF 檔案不含色彩描述檔與中繼資料。
+	Animate	動畫
+	Saves all {frames} frames as an animated AVIF.	將全部 {frames} 個影格儲存為動畫 AVIF。

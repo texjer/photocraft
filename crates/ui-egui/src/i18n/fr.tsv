@@ -3325,3 +3325,5 @@ curves	Smooth	Lisser
 	GPU adapter	Adaptateur GPU
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	Les fichiers AVIF ne contiennent ni profil colorimétrique ni métadonnées.
+	Animate	Animer
+	Saves all {frames} frames as an animated AVIF.	Enregistre les {frames} images dans un AVIF animé.

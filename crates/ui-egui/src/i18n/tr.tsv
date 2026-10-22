@@ -4042,3 +4042,5 @@ cameraData	Lens	Lens
 	GPU adapter	GPU bağdaştırıcısı
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	AVIF dosyaları renk profili veya meta veri içermez.
+	Animate	Canlandır
+	Saves all {frames} frames as an animated AVIF.	{frames} karenin tümünü hareketli AVIF olarak kaydeder.

@@ -4431,3 +4431,5 @@ shape	Appearance	Aspetto
 	GPU adapter	Adattatore GPU
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	I file AVIF non contengono profilo colore né metadati.
+	Animate	Anima
+	Saves all {frames} frames as an animated AVIF.	Salva tutti i {frames} fotogrammi come AVIF animato.

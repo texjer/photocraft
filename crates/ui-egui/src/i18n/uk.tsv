@@ -4023,3 +4023,5 @@ curves	Smooth	Згладити
 	GPU adapter	Адаптер GPU
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	Файли AVIF не містять колірного профілю й метаданих.
+	Animate	Анімувати
+	Saves all {frames} frames as an animated AVIF.	Зберігає всі кадри ({frames}) як анімований AVIF.

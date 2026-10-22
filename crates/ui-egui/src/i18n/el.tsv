@@ -4014,3 +4014,5 @@ curves	Smooth	Εξομάλυνση
 	GPU adapter	Προσαρμογέας GPU
 # Save for Web: AVIF (#2415, #6391)
 	AVIF files carry no color profile or metadata.	Τα αρχεία AVIF δεν περιέχουν χρωματικό προφίλ ούτε μεταδεδομένα.
+	Animate	Κίνηση
+	Saves all {frames} frames as an animated AVIF.	Αποθηκεύει και τα {frames} καρέ ως κινούμενο AVIF.

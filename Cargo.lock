@@ -4860,6 +4860,7 @@ dependencies = [
  "png 0.18.1",
  "proptest",
  "rav1d",
+ "rav1e",
  "rayon",
  "serde_json",
  "thiserror 2.0.21",

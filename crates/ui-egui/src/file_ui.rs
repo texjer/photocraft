@@ -454,7 +454,58 @@ fn advance_preview(frame: usize, duration: usize, fps: f32, last: f64, now: f64)
     (next, now - (elapsed_frames - steps) / fps)
 }
 
+/// The frame a frame animation's preview shows after `now`, each frame held for its own delay
+/// (0 for 100 ms, as browsers play it) and looping; `last` is when the shown frame began.
+fn advance_frames(frame: usize, delays: &[u32], last: f64, now: f64) -> (usize, f64) {
+    let n = delays.len().max(1);
+    let hold = |i: usize| f64::from(delays.get(i).copied().filter(|d| *d > 0).unwrap_or(100)) / 1000.0;
+    let (mut frame, mut last) = (frame.min(n - 1), last);
+    if !now.is_finite() || !last.is_finite() || now < last {
+        return (frame, now);
+    }
+    // Paused or hidden for longer than a whole pass: start the frame afresh rather than spin.
+    let pass: f64 = (0..n).map(hold).sum();
+    if now - last > pass {
+        last = now - (now - last) % pass.max(0.001);
+    }
+    while now - last >= hold(frame) {
+        last += hold(frame);
+        frame = (frame + 1) % n;
+    }
+    (frame, last)
+}
+
+/// Play and Pause over a frame animation (Window › Timeline in frame mode) for the preview.
+fn frame_playback(ui: &mut egui::Ui, f: &mut Map<String, Value>, a: &photocraft_doc::FrameAnimation) -> Option<usize> {
+    let delays: Vec<u32> = a.frames.iter().map(|fr| fr.delay_ms).collect();
+    let now = ui.input(|i| i.time);
+    let mut frame = f.get("__web_frame").and_then(Value::as_u64).and_then(|v| usize::try_from(v).ok()).unwrap_or(a.current).min(delays.len() - 1);
+    let mut last = n(f, "__web_time", now);
+    let mut playing = b(f, "__web_playing", false);
+    if playing {
+        (frame, last) = advance_frames(frame, &delays, last, now);
+    }
+    ui.horizontal(|ui| {
+        if crate::icons::button(ui, if playing { "pause" } else { "play" }, 22.0, playing, if playing { tl!("Pause") } else { tl!("Play") }).clicked() {
+            playing = !playing;
+            last = now;
+        }
+        ui.label(format!("{} / {}", frame + 1, delays.len()));
+    });
+    f.insert("__web_frame".into(), json!(frame));
+    f.insert("__web_time".into(), json!(last));
+    f.insert("__web_playing".into(), json!(playing));
+    if playing {
+        let hold = f64::from(if delays[frame] == 0 { 100 } else { delays[frame] }) / 1000.0;
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64((hold - (now - last)).clamp(0.0, 1.0)));
+    }
+    Some(frame)
+}
+
 fn web_playback(ui: &mut egui::Ui, f: &mut Map<String, Value>, doc: &photocraft_doc::Document) -> Option<usize> {
+    if let Some(a) = doc.frame_animation.as_ref().filter(|a| a.frames.len() > 1) {
+        return frame_playback(ui, f, a);
+    }
     let mut timeline = doc.timeline.clone()?;
     timeline.clamp();
     if timeline.duration < 2 {
@@ -484,9 +535,15 @@ fn web_playback(ui: &mut egui::Ui, f: &mut Map<String, Value>, doc: &photocraft_
     Some(frame)
 }
 
-/// Seek a preview copy, preserving any edits to the source's currently displayed frame.
+/// Seek a preview copy, preserving any edits to the source's currently displayed frame. A frame
+/// animation shows that frame's layers.
 fn web_frame_document(doc: &photocraft_doc::Document, frame: Option<usize>) -> Result<photocraft_doc::Document, photocraft_engine::EngineError> {
     let Some(frame) = frame else { return Ok(doc.clone()) };
+    if let Some(a) = doc.frame_animation.as_ref().filter(|a| frame < a.frames.len()) {
+        let mut d = doc.clone();
+        a.apply(frame, &mut d.layers);
+        return Ok(d);
+    }
     let mut preview = photocraft_engine::Session::new();
     preview.add_document(doc.clone(), None);
     preview.execute("timeline.setFrame", json!({"frame": frame}))?;
@@ -606,6 +663,15 @@ fn web_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<String, Valu
                     "avif" => {
                         number(ui, f, "quality", tl!("Quality"), 0.0..=100.0, "", 60.0);
                         check(ui, f, "transparency", tl!("Transparency"), true);
+                        // A frame animation or a video timeline saves every frame, unless unticked.
+                        let frames = doc.frame_animation.as_ref().map(|a| a.frames.len()).or(doc.timeline.as_ref().map(|t| t.duration)).filter(|n| *n > 1);
+                        if let Some(frames) = frames {
+                            check(ui, f, "animate", tl!("Animate"), true);
+                            if b(f, "animate", true) {
+                                let note = crate::i18n::fmt(tl!("Saves all {frames} frames as an animated AVIF."), &[("frames", &frames.to_string())]);
+                                ui.label(egui::RichText::new(note).color(t.text_dim).small());
+                            }
+                        }
                         ui.label(egui::RichText::new(tl!("AVIF files carry no color profile or metadata.")).color(t.text_dim).small());
                     }
                     "wbmp" => {
@@ -1695,6 +1761,38 @@ mod web_playback_tests {
         app
     }
 
+    /// AVIF: a frame animation offers Animate (on), says how many frames it saves, and the
+    /// preview plays the frames.
+    #[test]
+    fn a_frame_animation_offers_an_animated_avif_and_plays() {
+        if !WebFormat::Avif.available() {
+            return;
+        }
+        let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+        app.run("file.new", json!({"width": 32, "height": 24})).unwrap();
+        app.run("layer.new.layer", json!({})).unwrap();
+        app.run("edit.fill", json!({"color": "#ff0000"})).unwrap();
+        app.run("animation.makeFramesFromLayers", json!({"seconds": 0.1})).unwrap();
+        let id = open_web(&mut app);
+        let mut fields = app.ui.dialog_mut(id).unwrap().fields.clone();
+        fields.insert("format".into(), json!("avif"));
+        let mut h = harness(app, fields);
+        assert!(h.query_by_label("Animate").is_some());
+        assert!(h.query_by_label("Saves all 2 frames as an animated AVIF.").is_some());
+        assert!(h.query_by_label("1 / 2").is_some());
+        h.get_by_label("Play").click();
+        let mut seen = Vec::new();
+        for _ in 0..6 {
+            h.run_steps(1);
+            seen.push(h.state().1["__web_frame"].as_u64());
+        }
+        assert!(seen.contains(&Some(1)), "the second frame plays: {seen:?}");
+        h.get_by_label("Animate").click();
+        h.run_steps(2);
+        assert_eq!(h.state().1["animate"], false);
+        assert!(h.query_by_label("Saves all 2 frames as an animated AVIF.").is_none());
+    }
+
     fn harness(app: PhotocraftApp, fields: Map<String, Value>) -> Harness<'static, (PhotocraftApp, Map<String, Value>)> {
         let mut h = Harness::builder().with_size(egui::vec2(1000.0, 800.0)).with_step_dt(0.1).build_ui_state(
             |ui, state: &mut (PhotocraftApp, Map<String, Value>)| {
@@ -1919,6 +2017,21 @@ mod web_clock_tests {
     #[test]
     fn fractional_frame_rates_work() {
         assert_eq!(advance_preview(0, 3, 0.5, 0.0, 2.0), (1, 2.0));
+    }
+    #[test]
+    fn a_frame_animation_holds_each_frame_for_its_own_delay() {
+        let delays = [100, 300];
+        assert_eq!(advance_frames(0, &delays, 0.0, 0.05), (0, 0.0));
+        assert_eq!(advance_frames(0, &delays, 0.0, 0.1), (1, 0.1));
+        assert_eq!(advance_frames(1, &delays, 0.1, 0.35), (1, 0.1));
+        assert_eq!(advance_frames(1, &delays, 0.1, 0.4), (0, 0.4));
+        // A 0 delay shows for 100 ms, as browsers play it.
+        assert_eq!(advance_frames(0, &[0, 0], 0.0, 0.1), (1, 0.1));
+        // A long pause doesn't replay every pass it missed.
+        let (frame, last) = advance_frames(0, &delays, 0.0, 100.05);
+        assert_eq!(frame, 0);
+        assert!((last - 100.0).abs() < 1e-6, "{last}");
+        assert_eq!(advance_frames(9, &[], 1.0, 0.5), (0, 0.5));
     }
     #[test]
     fn malformed_or_changed_timeline_is_bounded() {
