@@ -188,7 +188,7 @@ fn estimates_every_format_at_every_depth() {
     for depth in [8, 16, 32] {
         let mut s = session(depth);
         let mut sizes = Vec::new();
-        for f in ["gif", "png8", "png24", "jpeg", "wbmp"] {
+        for f in ["gif", "png8", "png24", "jpeg", "wbmp", "webp"] {
             let r = s.execute("file.export.saveForWebLegacy", json!({"format": f, "colors": 16})).unwrap();
             assert_eq!((r["width"].as_u64(), r["height"].as_u64()), (Some(64), Some(48)), "{f}");
             assert!(r["bytes"].as_u64().unwrap() > 20, "{f}");
@@ -284,6 +284,95 @@ fn jpeg_quality_progressive_and_metadata() {
     assert!(xmp.contains("Example"), "copyright kept");
     assert!(!xmp.contains("secret"), "description dropped");
     assert!(decode(&lo).meta.xmp.is_none());
+}
+
+/// WebP (#2415, #6391): lossy at the chosen quality or lossless, keeping translucency unless
+/// transparency is off, with the chosen metadata and an optional colour profile.
+#[test]
+fn webp_lossy_lossless_transparency_and_metadata() {
+    let dir = tmp("webp");
+    let mut s = session(16);
+    s.execute("file.fileInfo", json!({"copyright": "© Example", "description": "secret notes"})).unwrap();
+    s.execute("edit.assignProfile", json!({"profile": "srgb"})).unwrap();
+    let path = |name: &str| format!("{dir}/{name}");
+    let mut export = |name: &str, p: Value| {
+        let mut p = p;
+        p["format"] = json!("webp");
+        p["path"] = json!(path(name));
+        s.execute("file.export.saveForWebLegacy", p).unwrap();
+        std::fs::read(path(name)).unwrap()
+    };
+    let lo = export("lo.webp", json!({"quality": 5}));
+    let hi = export("hi.webp", json!({"quality": 95, "embedIcc": true}));
+    let lossless = export("lossless.webp", json!({"lossless": true, "metadata": "none"}));
+    let opaque = export("opaque.webp", json!({"transparency": false, "matte": "#00ff00"}));
+    for bytes in [&lo, &hi, &lossless, &opaque] {
+        assert_eq!((&bytes[0..4], &bytes[8..12]), (&b"RIFF"[..], &b"WEBP"[..]));
+    }
+    assert!(lo.len() < hi.len(), "quality drives the size: {} vs {}", lo.len(), hi.len());
+    let has = |b: &[u8], fourcc: &[u8]| b.windows(4).any(|w| w == fourcc);
+    assert!(has(&hi, b"VP8 ") && has(&hi, b"ALPH"), "lossy keeps translucency in an alpha chunk");
+    assert!(has(&lossless, b"VP8L") && !has(&lossless, b"VP8 "));
+    assert!(!has(&opaque, b"ALPH"), "transparency off composites over the matte");
+
+    // Lossless is the PNG-24 export's pixels exactly.
+    s.execute("file.export.saveForWebLegacy", json!({"format": "png24", "path": path("same.png")})).unwrap();
+    let (a, b) = (decode(&path("lossless.webp")), decode(&path("same.png")));
+    let rgba = |i: &photocraft_codecs::Image| i.convert(photocraft_codecs::ChannelLayout::Rgba, photocraft_codecs::SampleType::U8).data().to_vec();
+    assert_eq!(rgba(&a), rgba(&b));
+    // The transparent corner stays transparent; with transparency off it is the matte.
+    assert_eq!(rgba(&a)[3], 0);
+    let o = rgba(&decode(&path("opaque.webp")));
+    assert!(o[3] == 255 && o[1] > 200 && o[0] < 60, "{:?}", &o[..4]);
+
+    let meta = decode(&path("hi.webp"));
+    let xmp = meta.meta.xmp.unwrap_or_default();
+    assert!(xmp.contains("Example") && !xmp.contains("secret"), "copyright only");
+    assert!(meta.icc.is_some(), "Embed Color Profile");
+    assert!(decode(&path("lo.webp")).icc.is_none());
+    assert!(a.meta.xmp.is_none(), "metadata none");
+}
+
+/// AVIF (#2415, #6391): quality drives the size and translucency gets an alpha item. A build
+/// without the AVIF writer refuses the format instead of writing something else.
+#[test]
+fn avif_quality_and_transparency_or_refused() {
+    let dir = tmp("avif");
+    let mut s = session(8);
+    let path = |name: &str| format!("{dir}/{name}");
+    let mut export = |name: &str, p: Value| {
+        let mut p = p;
+        p["format"] = json!("avif");
+        p["path"] = json!(path(name));
+        s.execute("file.export.saveForWebLegacy", p).map(|_| std::fs::read(path(name)).unwrap())
+    };
+    if !super::WebFormat::Avif.available() {
+        let e = export("no.avif", json!({})).unwrap_err().to_string();
+        assert!(e.contains("can't write"), "{e}");
+        return;
+    }
+    let lo = export("lo.avif", json!({"quality": 5})).unwrap();
+    let hi = export("hi.avif", json!({"quality": 95})).unwrap();
+    let opaque = export("opaque.avif", json!({"quality": 95, "transparency": false})).unwrap();
+    for bytes in [&lo, &hi, &opaque] {
+        assert_eq!((&bytes[4..8], &bytes[8..12]), (&b"ftyp"[..], &b"avif"[..]));
+    }
+    assert!(lo.len() < hi.len(), "quality drives the size: {} vs {}", lo.len(), hi.len());
+    let alpha = |b: &[u8]| b.windows(8).any(|w| w == b"auxiliar");
+    assert!(alpha(&hi), "translucency keeps an alpha item");
+    assert!(!alpha(&opaque), "transparency off composites over the matte");
+    let v = s.execute("file.export.saveForWebLegacy", json!({"format": "avif", "quality": 60})).unwrap();
+    assert!(v["bytes"].as_u64().is_some_and(|n| n > 0), "the dialog's size estimate: {v}");
+}
+
+/// Sizes WebP cannot hold are an error, not a crash.
+#[test]
+fn webp_too_large_is_an_error() {
+    let mut s = session(8);
+    for lossless in [false, true] {
+        let r = s.execute("file.export.saveForWebLegacy", json!({"format": "webp", "lossless": lossless, "width": 20000, "height": 2}));
+        assert!(r.is_err(), "lossless {lossless}: {r:?}");
+    }
 }
 
 #[test]
@@ -721,6 +810,9 @@ fn web_settings_from_params() {
     assert!((st.web_snap - 0.5).abs() < 1e-6);
     assert!(WebSettings::from_params(&json!({"preset": "Nope"}), "x").is_err());
     assert!(WebSettings::from_params(&json!({"palette": "weird"}), "x").is_err());
+    let webp = WebSettings::from_params(&json!({"format": "webp", "lossless": true, "quality": 70}), "x").unwrap();
+    assert_eq!((webp.format, webp.lossless, webp.quality), (WebFormat::Webp, true, 70));
+    assert_eq!(WebSettings::from_params(&webp.to_params(), "x").unwrap(), webp);
     for p in PRESETS {
         let st = preset_settings(p).unwrap();
         assert_eq!(WebSettings::from_params(&st.to_params(), "x").unwrap(), st, "{p} round-trips through params");
@@ -733,7 +825,7 @@ fn previews_show_the_optimised_pixels() {
     let doc = s.active().unwrap().doc.clone();
     let (wd, _, _) = web_document(&doc, &json!({}), &WebSettings::default()).unwrap();
     let buf = photocraft_compose::flatten(&wd);
-    for f in ["jpeg", "gif", "png8", "png24", "wbmp"] {
+    for f in ["jpeg", "gif", "png8", "png24", "wbmp", "webp"] {
         let st = WebSettings::from_params(&json!({"format": f, "quality": 90, "transparency": false}), "x").unwrap();
         let o = optimize(&buf.px, 64, wd.bounds(), &st, None, None, None, 72.0, true).unwrap();
         assert_eq!(o.preview.len(), 64 * 48 * 4, "{f}");
@@ -786,6 +878,21 @@ fn slices_with_the_same_name_get_distinct_files() {
 }
 
 #[test]
+fn overlapping_slices_export_each_pixel_once() {
+    // #7770: without HTML too, a slice covered by a later one is written as its visible pieces.
+    let dir = tmp("overlap_images");
+    let mut s = session(8);
+    s.execute("slice.new", json!({"rect": [0, 0, 40, 30], "name": "under"})).unwrap();
+    s.execute("slice.new", json!({"rect": [20, 15, 40, 30], "name": "over"})).unwrap();
+    let r = s.execute("file.export.saveForWebLegacy", json!({"format": "png24", "dir": dir, "slices": "user"})).unwrap();
+    let mut files: Vec<String> = r["files"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect();
+    let dims: Vec<(u32, u32)> = files.iter().map(|f| decode(f).dimensions()).collect();
+    files.iter_mut().for_each(|f| *f = f.rsplit('/').next().unwrap().to_string());
+    assert_eq!(files, ["under.png", "under-03.png", "over.png"]);
+    assert_eq!(dims, [(40, 15), (20, 15), (40, 30)]);
+}
+
+#[test]
 fn overlapping_slices_keep_the_later_slice_in_html() {
     // #909: the later slice is on top; the earlier one shows only where it isn't covered.
     let dir = tmp("overlap");
@@ -809,7 +916,10 @@ fn overlapping_slices_keep_the_later_slice_in_html() {
         })
         .sum();
     assert_eq!(area, 64 * 48);
-    assert!(files.iter().any(|f| f.ends_with("images/under_01.png")), "the covered slice is cut into pieces: {files:?}");
+    // As Photoshop names subslices: the first piece keeps the name, the others add their number.
+    let under = files.iter().find(|f| f.ends_with("images/under.png")).unwrap();
+    assert_eq!(decode(under).dimensions(), (40, 15), "the covered slice is cut into pieces: {files:?}");
+    assert!(files.iter().any(|f| f.ends_with("images/under-03.png")), "{files:?}");
 }
 
 #[path = "color_table_tests.rs"]

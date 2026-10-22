@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use photocraft_engine::web_cmds::{self, Optimized, WebSettings};
+use photocraft_engine::web_cmds::{self, Optimized, WebFormat, WebSettings};
 use serde_json::{Map, Value, json};
 
 use crate::PhotocraftApp;
@@ -200,7 +200,13 @@ fn b(f: &Map<String, Value>, k: &str, d: bool) -> bool {
 #[path = "file_ui/web_preview.rs"]
 mod web_preview;
 
-const WEB_FORMATS: [(&str, &str); 5] = [("gif", "GIF"), ("png8", "PNG-8"), ("png24", "PNG-24"), ("jpeg", "JPEG"), ("wbmp", "WBMP")];
+const WEB_FORMATS: [(&str, &str); 7] =
+    [("gif", "GIF"), ("png8", "PNG-8"), ("png24", "PNG-24"), ("jpeg", "JPEG"), ("webp", "WebP"), ("avif", "AVIF"), ("wbmp", "WBMP")];
+
+/// The formats this build can write: AVIF only with the `avif` codecs feature.
+fn web_formats() -> Vec<(&'static str, &'static str)> {
+    WEB_FORMATS.into_iter().filter(|(id, _)| WebFormat::from_id(id).is_some_and(WebFormat::available)).collect()
+}
 const WEB_COMMAND: &str = "file.export.saveForWebLegacy";
 
 pub fn open_web(app: &mut PhotocraftApp) -> u64 {
@@ -226,9 +232,14 @@ pub fn open_web(app: &mut PhotocraftApp) -> u64 {
             }
         }
     }
+    // A format remembered from a build that could write it (AVIF) falls back to the default.
+    if f.get("format").and_then(Value::as_str).is_some_and(|id| !WebFormat::from_id(id).is_some_and(WebFormat::available)) {
+        f.remove("format");
+    }
     for (k, v) in [
         ("format", json!("jpeg")),
         ("quality", json!(60)),
+        ("lossless", json!(false)),
         ("palette", json!("selective")),
         ("colors", json!(128)),
         ("dither", json!("diffusion")),
@@ -259,7 +270,7 @@ fn variants(p: &Value) -> Vec<Value> {
             m.remove("colorTable");
             m.remove("colorTableEdits");
         }
-        if fmt == "jpeg" {
+        if fmt == "jpeg" || fmt == "avif" || (fmt == "webp" && !p["lossless"].as_bool().unwrap_or(false)) {
             v["quality"] = json!((p["quality"].as_f64().unwrap_or(60.0) / k).round().max(1.0));
         } else if fmt == "gif" || fmt == "png8" {
             v["colors"] = json!((p["colors"].as_f64().unwrap_or(128.0) / k).round().max(2.0));
@@ -319,8 +330,10 @@ fn web_pane(app: &PhotocraftApp, ui: &mut egui::Ui, size: egui::Vec2, p: Option<
             v
         }
     };
-    let sig = format!("{}|{rev}|{frame:?}|{size_sig}|{}", doc.id.0, p.map(|v| v.to_string()).unwrap_or_else(|| "original".into()));
     let key = egui::Id::new(("web-pane", doc.id.0, pane));
+    // AVIF: a finished background encode replaces the estimate (a new generation).
+    let (avif_generation, encoding) = if p.is_some() { web_preview::avif_status(ui, key) } else { (0, false) };
+    let sig = format!("{}|{rev}|{frame:?}|{size_sig}|{}|{avif_generation}", doc.id.0, p.map(|v| v.to_string()).unwrap_or_else(|| "original".into()));
     let cached: Option<WebCache> = ui.data(|d| d.get_temp(key));
     let (tex, info) = match cached.filter(|c| c.0 == sig) {
         Some((_, tex, info)) => (tex, info),
@@ -364,6 +377,7 @@ fn web_pane(app: &PhotocraftApp, ui: &mut egui::Ui, size: egui::Vec2, p: Option<
             (Some(_), None) => ("—".into(), String::new()),
         };
         let l1 = if ratio > 1.001 { format!("{l1}  ·  Proxy preview") } else { l1 };
+        let l1 = if encoding { format!("{l1}  ·  Encoding…") } else { l1 };
         ui.add(egui::Label::new(egui::RichText::new(l1).color(t.text).size(11.5)).truncate());
         ui.add(egui::Label::new(egui::RichText::new(l2).color(t.text_dim).size(11.0)).truncate());
     });
@@ -542,7 +556,7 @@ fn web_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<String, Valu
                     f.insert("__preset".into(), json!(preset));
                 }
                 ui.add_space(4.0);
-                dropdown_str(ui, "web-format", f, "format", &WEB_FORMATS, 230.0);
+                dropdown_str(ui, "web-format", f, "format", &web_formats(), 230.0);
                 ui.add_space(4.0);
                 let fmt = s(f, "format", "jpeg");
                 match fmt.as_str() {
@@ -581,6 +595,19 @@ fn web_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<String, Valu
                         check(ui, f, "optimized", tl!("Optimized"), true);
                         check(ui, f, "embedIcc", tl!("Embed Color Profile"), false);
                     }
+                    "webp" => {
+                        check(ui, f, "lossless", tl!("Lossless"), false);
+                        if !b(f, "lossless", false) {
+                            number(ui, f, "quality", tl!("Quality"), 0.0..=100.0, "", 60.0);
+                        }
+                        check(ui, f, "transparency", tl!("Transparency"), true);
+                        check(ui, f, "embedIcc", tl!("Embed Color Profile"), false);
+                    }
+                    "avif" => {
+                        number(ui, f, "quality", tl!("Quality"), 0.0..=100.0, "", 60.0);
+                        check(ui, f, "transparency", tl!("Transparency"), true);
+                        ui.label(egui::RichText::new(tl!("AVIF files carry no color profile or metadata.")).color(t.text_dim).small());
+                    }
                     "wbmp" => {
                         dropdown_str(
                             ui,
@@ -596,7 +623,7 @@ fn web_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<String, Valu
                         check(ui, f, "interlaced", tl!("Interlaced"), false);
                     }
                 }
-                if fmt != "png24" || !b(f, "transparency", true) {
+                if !matches!(fmt.as_str(), "png24" | "webp" | "avif") || !b(f, "transparency", true) {
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(tl!("Matte")).color(t.text_dim));
                         let mut m = s(f, "matte", "#ffffff");
@@ -770,6 +797,44 @@ pub fn open_print(app: &mut PhotocraftApp) -> u64 {
         }
     }
     app.ui.open_dialog(DialogKind::Command, f)
+}
+
+/// Whether the driver's paper, as `driver_page` took it, is wider than tall: the Orientation
+/// buttons show landscape then.
+fn driver_paper_is_wide(f: &Map<String, Value>) -> bool {
+    let side = |i: usize| f.get("paper").and_then(Value::as_array).and_then(|a| a.get(i)).and_then(Value::as_f64);
+    matches!((side(0), side(1)), (Some(w), Some(h)) if w > h)
+}
+
+/// The Orientation buttons: the driver settings (or the printer's own) turned portrait or
+/// landscape through `file.print.page`. An error stays on the dialog, with the settings left as
+/// they were.
+fn turn_driver(app: &mut PhotocraftApp, f: &mut Map<String, Value>, landscape: bool) {
+    let mut q = json!({"printer": s(f, "printer", ""), "orientation": if landscape { "landscape" } else { "portrait" }});
+    if let (Some(h), Some(o)) = (f.get("printerSettings").cloned(), q.as_object_mut()) {
+        o.insert("printerSettings".into(), h);
+    }
+    match app.session.execute("file.print.page", q) {
+        Ok(r) => take_turned_page(f, &r),
+        Err(e) => {
+            f.insert("__pageError".into(), json!(e.to_string()));
+        }
+    }
+}
+
+/// The turned settings and the paper they give, both from the one `file.print.page` answer, as
+/// `driver_page` takes a page: asking the driver again could fail and leave new settings with the
+/// old paper. An answer without both leaves the dialog as it was, with the reason shown.
+fn take_turned_page(f: &mut Map<String, Value>, r: &Value) {
+    let paper = r.get("paper").and_then(Value::as_array).and_then(|a| Some((a.first()?.as_f64()?, a.get(1)?.as_f64()?)));
+    let (Some(settings), Some((w, h))) = (r.get("printerSettings").and_then(Value::as_str), paper) else {
+        f.insert("__pageError".into(), json!("the printer did not report the turned page"));
+        return;
+    };
+    f.insert("printerSettings".into(), json!(settings));
+    f.insert("paper".into(), json!([w, h]));
+    f.insert("orientation".into(), json!("portrait"));
+    f.remove("__pageError");
 }
 
 /// Takes the paper from the printer's driver settings (Windows), as Photoshop does.
@@ -1006,6 +1071,17 @@ fn print_body(app: &mut PhotocraftApp, ui: &mut egui::Ui, f: &mut Map<String, Va
                         }
                     }
                 });
+                // Photoshop's Layout: Portrait / Landscape turn the driver settings, so the paper
+                // and the preview turn with them without opening Print Settings….
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(tl!("Orientation")).color(t.text_dim));
+                    let wide = driver_paper_is_wide(f);
+                    for (landscape, label) in [(false, "Portrait"), (true, "Landscape")] {
+                        if crate::widgets::pill_tab(ui, label, wide == landscape).clicked() && wide != landscape {
+                            turn_driver(app, f, landscape);
+                        }
+                    }
+                });
                 let paper = p.get("paper").and_then(Value::as_array).map(|a| (a.first().and_then(Value::as_f64), a.get(1).and_then(Value::as_f64)));
                 let text = match paper {
                     Some((Some(w), Some(h))) => format!("{:.0} × {:.0} mm  ·  {}", w / 72.0 * 25.4, h / 72.0 * 25.4, tl!("set in Print Settings…")),
@@ -1230,6 +1306,16 @@ mod tests {
         let d = app.ui.dialog_mut(r["dialog"].as_u64().unwrap()).unwrap();
         assert_eq!(d.fields["format"], "gif");
         assert!(!d.fields.contains_key("path"));
+        // WebP, with the dialog's own defaults (lossy at quality 60).
+        let id = r["dialog"].as_u64().unwrap();
+        let d = app.ui.dialog_mut(id).unwrap();
+        let path = dir.join("web.webp").to_string_lossy().into_owned();
+        d.fields.insert("format".into(), json!("webp"));
+        d.fields.insert("path".into(), json!(path));
+        crate::dialogs::confirm(&mut app, id).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        assert_eq!(&bytes[8..12], b"WEBP");
+        assert!(bytes.windows(4).any(|w| w == b"VP8 "), "lossy by default");
     }
 
     /// A fresh session's dialog seeds from the preferences: the last export before a restart is
@@ -1530,6 +1616,65 @@ mod tests {
             std::fs::remove_file(out).unwrap();
         }
     }
+
+    /// The Orientation buttons show the driver paper's shape: landscape when it is wider than tall.
+    #[test]
+    fn orientation_follows_the_driver_paper() {
+        let with = |paper: Value| {
+            let mut f = Map::new();
+            f.insert("paper".into(), paper);
+            f
+        };
+        assert!(driver_paper_is_wide(&with(json!([1191.14, 842.29]))));
+        assert!(!driver_paper_is_wide(&with(json!([842.29, 1191.14]))));
+        assert!(!driver_paper_is_wide(&with(json!("a3"))), "a named paper is not a driver page");
+        assert!(!driver_paper_is_wide(&Map::new()));
+    }
+
+    /// Turning a printer whose driver can't be asked keeps its settings and says why on the dialog.
+    #[test]
+    fn turning_without_a_driver_keeps_the_settings_and_shows_the_error() {
+        // Valid driver settings (a minimal DEVMODEW: 220 bytes, no private part), so the command
+        // gets past reading them and fails where it asks the (missing) printer for its page.
+        let mut dm = vec![0u8; 220];
+        dm[68..70].copy_from_slice(&220u16.to_le_bytes());
+        let hex: String = dm.iter().map(|b| format!("{b:02x}")).collect();
+        assert!(craft_print::rgb::DevMode::from_hex(&hex).is_ok());
+        let (mut app, _) = app();
+        let mut f = Map::new();
+        f.insert("printer".into(), json!("photocraft-no-such-printer"));
+        f.insert("printerSettings".into(), json!(hex));
+        f.insert("paper".into(), json!([595.28, 841.89]));
+        turn_driver(&mut app, &mut f, true);
+        assert_eq!(f.get("printerSettings"), Some(&json!(hex)));
+        assert_eq!(f.get("paper"), Some(&json!([595.28, 841.89])));
+        let error = f.get("__pageError").and_then(Value::as_str).unwrap_or_default();
+        // Reading bad settings fails with "printer settings are too short / damaged"; this must not.
+        assert!(!error.is_empty() && !error.contains("printer settings are"), "failed at the printer, not at reading the settings: {error}");
+    }
+
+    /// A turn takes the settings and the paper from the same answer, never one without the other.
+    #[test]
+    fn a_turn_takes_settings_and_paper_together() {
+        let fields = || {
+            let mut f = Map::new();
+            f.insert("printerSettings".into(), json!("old"));
+            f.insert("paper".into(), json!([595.28, 841.89]));
+            f.insert("__pageError".into(), json!("earlier"));
+            f
+        };
+        let mut f = fields();
+        take_turned_page(&mut f, &json!({"printerSettings": "new", "paper": [841.89, 595.28]}));
+        assert_eq!((f.get("printerSettings"), f.get("paper")), (Some(&json!("new")), Some(&json!([841.89, 595.28]))));
+        assert_eq!(f.get("orientation"), Some(&json!("portrait")), "the driver paper is already turned");
+        assert!(f.get("__pageError").is_none());
+        for partial in [json!({"printerSettings": "new"}), json!({"paper": [841.89, 595.28]}), json!({"printerSettings": "new", "paper": [841.89]})] {
+            let mut f = fields();
+            take_turned_page(&mut f, &partial);
+            assert_eq!((f.get("printerSettings"), f.get("paper")), (Some(&json!("old")), Some(&json!([595.28, 841.89]))), "{partial}");
+            assert!(f.get("__pageError").is_some(), "{partial}");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1563,6 +1708,28 @@ mod web_playback_tests {
         PhotocraftApp::setup_context(&h.ctx, crate::theme::ThemeKind::ALL[0]);
         h.run_steps(3);
         h
+    }
+
+    /// WebP (#6391): Quality until Lossless is ticked; 4-Up halves a lossy quality like JPEG's.
+    #[test]
+    fn webp_settings_show_quality_until_lossless() {
+        let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
+        app.run("file.new", json!({"width": 32, "height": 24})).unwrap();
+        let id = open_web(&mut app);
+        let mut fields = app.ui.dialog_mut(id).unwrap().fields.clone();
+        fields.insert("format".into(), json!("webp"));
+        assert_eq!(fields["lossless"], false);
+        let mut h = harness(app, fields);
+        assert!(h.query_by_label("Quality").is_some());
+        h.get_by_label("Lossless").click();
+        h.run_steps(2);
+        assert_eq!(h.state().1["lossless"], true);
+        assert!(h.query_by_label("Quality").is_none(), "lossless has no quality");
+
+        let v = variants(&json!({"format": "webp", "quality": 80}));
+        assert_eq!((v[1]["format"].as_str(), v[1]["quality"].as_f64(), v[2]["quality"].as_f64()), (Some("webp"), Some(40.0), Some(20.0)));
+        let v = variants(&json!({"format": "webp", "lossless": true}));
+        assert_eq!((v[1]["format"].as_str(), v[2]["format"].as_str()), (Some("png8"), Some("gif")));
     }
 
     #[test]
@@ -1660,7 +1827,7 @@ mod web_playback_tests {
         h.run_steps(2);
         assert_eq!(h.state().1["colorTable"], expected_palette);
         let key = egui::Id::new(("web-pane", doc_id, 1usize)).with("indexed-source");
-        let encoded = |ctx: &egui::Context| ctx.data(|d| d.get_temp::<(String, Arc<Optimized>)>(key)).unwrap().1;
+        let encoded = |ctx: &egui::Context| ctx.data(|d| d.get_temp::<(String, Arc<Optimized>, usize)>(key)).unwrap().1;
         let first = encoded(&h.ctx);
         h.state_mut().1.insert("colorTableEdits".into(), json!({"0":"#ffff00"}));
         h.run_steps(2);
