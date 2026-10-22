@@ -50,6 +50,9 @@ pub struct TimelineUi {
     /// Where the panel was drawn last frame: the timeline's keys work while the pointer is over it.
     #[serde(default, skip)]
     pub panel_rect: Option<egui::Rect>,
+    /// Space is down and, so far, a tap: no drag, no other key. Letting it go plays or pauses.
+    #[serde(default, skip)]
+    pub space_tap: bool,
 }
 
 /// Menu checkmark for Window › Timeline.
@@ -334,6 +337,59 @@ fn pointer_over(app: &PhotocraftApp, ctx: &egui::Context) -> bool {
 /// even with the pointer resting over the panel.
 pub(crate) fn keys_apply(app: &PhotocraftApp, ctx: &egui::Context) -> bool {
     app.ui.text_edit.is_none() && pointer_over(app, ctx)
+}
+
+/// Could a tap of Space play the timeline from anywhere now? The panel is open on a document that
+/// has something to play, and nothing else wants Space: no text or focused control, dialog, menu or
+/// type being edited, and the pointer is off the panel (over it, [`keys`] plays on the press).
+fn space_tap_applies(app: &PhotocraftApp, ctx: &egui::Context) -> bool {
+    app.ui.timeline.open
+        && app.session.active().is_some_and(|d| d.doc.timeline.is_some() || d.doc.frame_animation.is_some())
+        && crate::shortcut_dispatch::Focus::of(ctx) == crate::shortcut_dispatch::Focus::None
+        && app.ui.text_edit.is_none()
+        && app.ui.dialogs.is_empty()
+        && app.discard.is_none()
+        && app.camera_raw.is_none()
+        && app.distort.liquify.is_none()
+        && app.distort.caf.is_none()
+        && !crate::menu_nav::is_open(ctx)
+        && !crate::menu_keys::is_focused(ctx)
+        && !egui::Popup::is_any_open(ctx)
+        && !pointer_over(app, ctx)
+}
+
+/// Space tapped anywhere plays or pauses while the Timeline is open, as in Photoshop. Held, Space is
+/// still the Hand tool: a drag (or another key, as Space+F) while it is down makes it no tap. Watches
+/// the key events without taking them, so the Hand tool sees Space as before.
+pub fn space_tap(app: &mut PhotocraftApp, ctx: &egui::Context) {
+    use egui::{Event, Key};
+    let applies = space_tap_applies(app, ctx);
+    let mut tap = app.ui.timeline.space_tap;
+    let mut released = false;
+    ctx.input(|i| {
+        for e in &i.events {
+            match e {
+                Event::Key { key: Key::Space, pressed: true, repeat: false, modifiers, .. } => {
+                    tap = applies && modifiers.is_none() && !i.pointer.any_down();
+                }
+                Event::Key { key: Key::Space, pressed: false, .. } => {
+                    released |= tap;
+                    tap = false;
+                }
+                Event::Key { key: Key::Space, .. } => {}
+                Event::Key { pressed: true, .. } | Event::PointerButton { pressed: true, .. } => tap = false,
+                _ => {}
+            }
+        }
+        // ⌘Space and ⌥Space are the zoom keys, whichever key went down first.
+        if !i.modifiers.is_none() {
+            tap = false;
+        }
+    });
+    app.ui.timeline.space_tap = tap;
+    if released && applies {
+        toggle_play(app, ctx);
+    }
 }
 
 /// Keys for the Timeline, while the pointer is over it (and no text field has the keyboard):

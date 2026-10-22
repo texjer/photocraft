@@ -157,13 +157,67 @@ fn hover_panel(h: &mut Harness<'static, PhotocraftApp>) -> egui::Rect {
 #[test]
 fn space_plays_and_pauses_while_the_pointer_is_over_the_timeline() {
     let mut h = harness();
-    h.key_press(egui::Key::Space);
-    h.run_steps(2);
-    assert!(!h.state().ui.timeline.playing, "Space elsewhere is not the timeline's");
     hover_panel(&mut h);
     h.key_press(egui::Key::Space);
     h.run_steps(2);
     assert!(h.state().ui.timeline.playing);
+    h.key_press(egui::Key::Space);
+    h.run_steps(2);
+    assert!(!h.state().ui.timeline.playing);
+}
+
+fn space(h: &mut Harness<'static, PhotocraftApp>, pressed: bool) {
+    h.event(egui::Event::Key { key: egui::Key::Space, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE });
+    h.run_steps(1);
+}
+
+/// The pointer over the canvas, not the panel.
+fn over_canvas(h: &mut Harness<'static, PhotocraftApp>) -> egui::Pos2 {
+    let r = h.state().ui.timeline.panel_rect.expect("the panel was drawn");
+    let p = egui::pos2(r.center().x, r.top() - 200.0);
+    h.event(egui::Event::PointerMoved(p));
+    h.run_steps(2);
+    p
+}
+
+#[test]
+fn a_tap_of_space_plays_and_pauses_with_the_pointer_anywhere() {
+    let mut h = harness();
+    over_canvas(&mut h);
+    space(&mut h, true);
+    assert!(!h.state().ui.timeline.playing, "not on the press: Space may be held for the Hand tool");
+    space(&mut h, false);
+    assert!(h.state().ui.timeline.playing, "a tap plays");
+    h.key_press(egui::Key::Space);
+    h.run_steps(2);
+    assert!(!h.state().ui.timeline.playing, "a second tap pauses");
+}
+
+#[test]
+fn space_held_to_pan_does_not_play() {
+    let mut h = harness();
+    let p = over_canvas(&mut h);
+    space(&mut h, true);
+    h.event(egui::Event::PointerButton { pos: p, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE });
+    h.event(egui::Event::PointerMoved(p + vec2(40.0, 30.0)));
+    h.run_steps(1);
+    h.event(egui::Event::PointerButton { pos: p + vec2(40.0, 30.0), button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE });
+    h.run_steps(1);
+    space(&mut h, false);
+    assert!(!h.state().ui.timeline.playing, "Space+drag pans");
+    // Space+F cycles the pasteboard colour; that isn't a tap either.
+    space(&mut h, true);
+    h.key_press(egui::Key::F);
+    space(&mut h, false);
+    assert!(!h.state().ui.timeline.playing, "Space+F");
+}
+
+#[test]
+fn a_tap_of_space_needs_the_timeline_open() {
+    let mut h = harness();
+    over_canvas(&mut h);
+    h.state_mut().ui.timeline.open = false;
+    h.run_steps(2);
     h.key_press(egui::Key::Space);
     h.run_steps(2);
     assert!(!h.state().ui.timeline.playing);
