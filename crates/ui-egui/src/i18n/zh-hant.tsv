@@ -2919,6 +2919,7 @@ curves	Smooth	平滑
 	“{name}” is an animated {format} with {frames} frames. Open it as:	「{name}」是包含 {frames} 個影格的動畫 {format}。開啟為：
 	Open animated GIF as	動畫 GIF 開啟為
 	Open animated WebP as	動畫 WebP 開啟為
+	Open animated AVIF as	動畫 AVIF 開啟為
 
 # DDS Options (#1327)
 	DDS Options	DDS 選項

@@ -3790,6 +3790,7 @@ curves	Smooth	Làm mượt
 	“{name}” is an animated {format} with {frames} frames. Open it as:	“{name}” là ảnh {format} động gồm {frames} khung hình. Mở dưới dạng:
 	Open animated GIF as	Mở GIF động dưới dạng
 	Open animated WebP as	Mở WebP động dưới dạng
+	Open animated AVIF as	Mở AVIF động dưới dạng
 
 # DDS Options (#1327)
 	DDS Options	Tùy chọn DDS

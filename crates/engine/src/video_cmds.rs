@@ -271,7 +271,8 @@ fn load_frames(path: &str, fmt: photocraft_color::PixelFormat) -> Result<Footage
     for f in &files {
         let bytes = std::fs::read(f).map_err(|e| EngineError::Other(format!("read `{}`: {e}", f.display())))?;
         let name = f.to_string_lossy();
-        if matches!(photocraft_codecs::detect(&bytes), Some(photocraft_codecs::Format::Gif | photocraft_codecs::Format::WebP)) {
+        if matches!(photocraft_codecs::detect(&bytes), Some(photocraft_codecs::Format::Gif | photocraft_codecs::Format::WebP | photocraft_codecs::Format::Avif))
+        {
             photocraft_io::import_animation_frames(&name, &bytes, &mut |doc, delay_ms| {
                 frames.push(crate::file_cmds::flattened(&doc, fmt));
                 delays.push(delay_ms);
@@ -287,7 +288,7 @@ fn load_frames(path: &str, fmt: photocraft_color::PixelFormat) -> Result<Footage
         }
         frames.push(crate::file_cmds::flattened(&doc, fmt));
     }
-    // Only a lone GIF or WebP says how fast it plays; a sequence mixing files has no single rate.
+    // Only a lone GIF, WebP or AVIF says how fast it plays; a sequence mixing files has no single rate.
     let fps = if files.len() == 1 { fps_from_delays(&delays) } else { None };
     Ok(Footage { frames, fps })
 }

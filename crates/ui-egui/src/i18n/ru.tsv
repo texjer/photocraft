@@ -3277,6 +3277,7 @@ curves	Smooth	Сгладить
 	“{name}” is an animated {format} with {frames} frames. Open it as:	«{name}» — анимированный {format}, кадров: {frames}. Открыть как:
 	Open animated GIF as	Открывать анимированный GIF как
 	Open animated WebP as	Открывать анимированный WebP как
+	Open animated AVIF as	Открывать анимированный AVIF как
 
 # DDS Options (#1327)
 	DDS Options	Параметры DDS

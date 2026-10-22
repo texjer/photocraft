@@ -128,10 +128,14 @@ embedded table (and a PNG's transparent entry) so `photocraft-io` can open them 
   decodes to RGB. Image sequences, overlays and identity derivations, multilayer HEVC and some
   4:2:2/4:4:4 streams return `CodecError::Unsupported` or `Malformed`, never wrong pixels. Writing
   needs an HEVC encoder and every mature one is C, so HEIF is listed in `ASYMMETRIC_EXCEPTIONS`.
-* **AVIF.** Encoding uses `ravif`, which is pure Rust. Decoding
-  needs `dav1d`, which is C. AVIF is therefore read-unsupported, and write support is gated
-  behind the non-default `avif` feature. In a default build it is neither readable nor writable,
-  so the symmetric guarantee holds. It is listed in `ASYMMETRIC_EXCEPTIONS`.
+* **AVIF.** Behind the non-default `avif` feature, both ways: encoding uses `ravif`, decoding
+  `rav1d` (the Rust port of dav1d, git-pinned until its safe API is released, built without
+  assembly) with `avif-parse` for still items and `codecs::avif_boxes` for the rest. A still
+  image's ICC or CICP colour, `irot` and `imir` are applied, 10/12-bit opens as 16-bit and PQ/HLG
+  as linear 32-bit float, like HEIF. An animated AVIF (`avis`) decodes frame by frame from its
+  track (`decode_avif_frames`), with its alpha track and per-frame durations. Grid images and
+  Exif/XMP items aren't read yet. In a default build AVIF is neither readable nor writable, so
+  the symmetric guarantee holds.
 * **Lossy WebP.** Lossless (VP8L, via `image-webp`) is the default. `webp_lossless: false`
   writes a lossy file with our own clean-room VP8 key-frame encoder (`codecs::vp8`, from
   RFC 6386; `webp_quality` 0–100 on libwebp's scale sets the quantizer). Alpha travels losslessly

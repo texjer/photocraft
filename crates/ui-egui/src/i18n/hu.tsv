@@ -4217,6 +4217,7 @@ cameraRaw	Yellow	Sárga
 	“{name}” is an animated {format} with {frames} frames. Open it as:	A(z) „{name}” egy {frames} képkockás animált {format}. Megnyitás mint:
 	Open animated GIF as	Animált GIF megnyitása mint
 	Open animated WebP as	Animált WebP megnyitása mint
+	Open animated AVIF as	Animált AVIF megnyitása mint
 
 # DDS Options (#1327)
 	DDS Options	DDS-beállítások

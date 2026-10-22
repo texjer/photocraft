@@ -87,7 +87,7 @@ choice!(LogDestination { Metadata = "metadata", TextFile = "textFile", Both = "b
 choice!(LogDetail { SessionsOnly = "sessionsOnly", Concise = "concise", Detailed = "detailed" } default Concise);
 choice!(Ask { Always = "always", Never = "never", Ask = "ask" } default Always);
 choice!(
-    /// How File › Open opens an animated GIF or WebP: ask each time, as a frame animation (a
+    /// How File › Open opens an animated GIF, WebP or AVIF: ask each time, as a frame animation (a
     /// layer per frame, Window › Timeline), as one video layer, or as its first frame only.
     AnimatedOpen { Ask = "ask", Frames = "frames", Video = "video", FirstFrame = "firstFrame" } default Ask
 );
@@ -469,6 +469,8 @@ pub struct FileHandling {
     pub animated_gif: AnimatedOpen,
     /// How an animated WebP opens.
     pub animated_webp: AnimatedOpen,
+    /// How an animated AVIF opens.
+    pub animated_avif: AnimatedOpen,
     /// SVG groups deeper than this are rasterised on import; parser and document safety caps remain fixed.
     pub rasterize_svg_groups_deeper_than: u32,
     pub recent_file_count: u32,
@@ -491,6 +493,7 @@ impl Default for FileHandling {
             maximize_psd_compatibility: Ask::Always,
             animated_gif: AnimatedOpen::Ask,
             animated_webp: AnimatedOpen::Ask,
+            animated_avif: AnimatedOpen::Ask,
             rasterize_svg_groups_deeper_than: photocraft_doc::MAX_GROUP_DEPTH as u32,
             recent_file_count: 20,
             recent_files: Vec::new(),
@@ -1118,7 +1121,7 @@ pub fn choices(path: &str) -> Option<&'static [&'static str]> {
         "historyLog.destination" => LogDestination::NAMES,
         "historyLog.detail" => LogDetail::NAMES,
         "fileHandling.imagePreviews" | "fileHandling.maximizePsdCompatibility" => Ask::NAMES,
-        "fileHandling.animatedGif" | "fileHandling.animatedWebp" => AnimatedOpen::NAMES,
+        "fileHandling.animatedGif" | "fileHandling.animatedWebp" | "fileHandling.animatedAvif" => AnimatedOpen::NAMES,
         "export.quickExportFormat" => QuickExportFormat::NAMES,
         "export.quickExportLocation" => ExportLocation::NAMES,
         "export.metadata" => ExportMetadata::NAMES,

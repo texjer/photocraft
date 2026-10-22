@@ -93,7 +93,8 @@ pub fn decode_as_with(format: Format, bytes: &[u8], opts: &DecodeOptions) -> Res
         Format::Cineon => dpx::decode_cineon(bytes, l),
         Format::OpenExr => exr::decode(bytes, l),
         Format::Heif => heif::decode(bytes, l, opts.keep_orientation),
-        Format::Gif | Format::Bmp | Format::Tga | Format::Ico | Format::Qoi | Format::Hdr | Format::Avif => via_image::decode(format, bytes, l),
+        Format::Avif => crate::codecs::avif::decode(bytes, opts),
+        Format::Gif | Format::Bmp | Format::Tga | Format::Ico | Format::Qoi | Format::Hdr => via_image::decode(format, bytes, l),
     }?;
     // Without a resolution of the format's own (PNG pHYs, TIFF tags, JPEG's metadata), the
     // XMP or EXIF one counts, like Photoshop: a WebP, HEIF or PNG from a camera or phone
@@ -179,12 +180,20 @@ pub fn decode_webp_frames(bytes: &[u8], opts: &DecodeOptions) -> Result<Vec<Anim
     crate::codecs::webp_frames::decode(bytes, opts)
 }
 
-/// Every frame of a GIF or WebP ([`decode_gif_frames`], [`decode_webp_frames`]); `None` for a
+/// Decodes every frame of an animated AVIF the same way (a still AVIF yields one), in builds
+/// with the `avif` feature.
+pub fn decode_avif_frames(bytes: &[u8], opts: &DecodeOptions) -> Result<Vec<AnimationFrame>, CodecError> {
+    crate::codecs::avif::decode_frames(bytes, opts)
+}
+
+/// Every frame of a GIF, WebP or AVIF ([`decode_gif_frames`], [`decode_webp_frames`],
+/// [`decode_avif_frames`]); `None` for a still AVIF and for a
 /// format that has no frames to walk.
 pub fn decode_frames(bytes: &[u8], opts: &DecodeOptions) -> Option<Result<Vec<AnimationFrame>, CodecError>> {
     match detect(bytes)? {
         Format::Gif => Some(decode_gif_frames(bytes, opts)),
         Format::WebP => Some(decode_webp_frames(bytes, opts)),
+        Format::Avif if crate::codecs::avif::is_sequence(bytes) => Some(decode_avif_frames(bytes, opts)),
         _ => None,
     }
 }

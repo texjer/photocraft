@@ -3308,6 +3308,7 @@ curves	Smooth	Glätten
 	“{name}” is an animated {format} with {frames} frames. Open it as:	„{name}“ ist ein animiertes {format} mit {frames} Frames. Öffnen als:
 	Open animated GIF as	Animiertes GIF öffnen als
 	Open animated WebP as	Animiertes WebP öffnen als
+	Open animated AVIF as	Animiertes AVIF öffnen als
 
 # DDS Options (#1327)
 	DDS Options	DDS-Optionen

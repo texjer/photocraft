@@ -3489,6 +3489,7 @@ curves	Smooth	매끄럽게
 	“{name}” is an animated {format} with {frames} frames. Open it as:	“{name}”은(는) 프레임 {frames}개의 애니메이션 {format}입니다. 다음으로 열기:
 	Open animated GIF as	애니메이션 GIF 열기 방식
 	Open animated WebP as	애니메이션 WebP 열기 방식
+	Open animated AVIF as	애니메이션 AVIF 열기 방식
 
 # DDS Options (#1327)
 	DDS Options	DDS 옵션

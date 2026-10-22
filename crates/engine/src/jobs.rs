@@ -556,7 +556,7 @@ impl Session {
             move |s, mut r: photocraft_io::ImportResult| {
                 // File Handling's ACEScg option, before the colour prompt looks at the profile.
                 crate::file_cmds::tag_exr_colorspace(s, &name_a, &mut r.document);
-                // An animated GIF or WebP opens as the preference says, or is held back to ask.
+                // An animated GIF, WebP or AVIF opens as the preference says, or is held back to ask.
                 let animated = crate::animated_open::question(s.prefs(), &name_a, &r.document);
                 if animated.is_none() {
                     crate::animated_open::apply_preferred(s.prefs(), &name_a, &mut r.document, path.as_deref())?;

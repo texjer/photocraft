@@ -4008,6 +4008,7 @@ curves	Smooth	Згладити
 	“{name}” is an animated {format} with {frames} frames. Open it as:	«{name}» — анімований {format}, кадрів: {frames}. Відкрити як:
 	Open animated GIF as	Відкривати анімований GIF як
 	Open animated WebP as	Відкривати анімований WebP як
+	Open animated AVIF as	Відкривати анімований AVIF як
 
 # DDS Options (#1327)
 	DDS Options	Параметри DDS

@@ -1155,7 +1155,7 @@ pub fn open_mismatch(app: &mut PhotocraftApp, message: &str, action: &str, missi
     open_kind(app, "mismatch", tl!("Embedded Profile Mismatch"), fields)
 }
 
-/// How to open an animated GIF or WebP (`open_prompt`): `format` names it in the remember box.
+/// How to open an animated GIF, WebP or AVIF (`open_prompt`): `format` names it in the remember box.
 pub fn open_animated(app: &mut PhotocraftApp, title: &str, message: &str, format: &str, marker: &str) -> u64 {
     let mut fields = json!({"message": message, "format": format, "choice": "frames", "remember": false});
     fields[marker] = json!(true);
@@ -1211,6 +1211,7 @@ fn humanize(key: &str) -> String {
         "exrAcesCg" => return "Open color-less EXR as ACEScg".into(),
         "animatedGif" => return "Open animated GIF as".into(),
         "animatedWebp" => return "Open animated WebP as".into(),
+        "animatedAvif" => return "Open animated AVIF as".into(),
         "darkTheme" => return "Dark Theme".into(),
         "lightTheme" => return "Light Theme".into(),
         _ => {}

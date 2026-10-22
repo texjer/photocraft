@@ -99,3 +99,24 @@ fn an_animated_webp_is_asked_about_and_becomes_any_of_the_three() {
     apply_preferred(&prefs_with(AnimatedOpen::Video, AnimatedOpen::Ask), "a.webp", &mut asked, None).unwrap();
     assert_eq!(asked.layers.len(), 2);
 }
+
+/// An animated AVIF (libavif's, in the codecs fixtures) is asked about as AVIF and opens as a
+/// frame animation with its durations, in builds that read AVIF.
+#[test]
+fn an_animated_avif_asks_and_opens_as_frames() {
+    if !photocraft_codecs::caps(photocraft_codecs::Format::Avif).read {
+        return;
+    }
+    let bytes = include_bytes!("../../../codecs/tests/fixtures/avif/anim-rgb-3-frames.avif");
+    let doc = read("a.avif", bytes);
+    let q = question(&Preferences::default(), "a.avif", &doc).unwrap();
+    assert_eq!(q, json!({"format": "AVIF", "key": "animatedAvif", "frames": 3}));
+    let delays: Vec<u32> = doc.frame_animation.as_ref().unwrap().frames.iter().map(|f| f.delay_ms).collect();
+    assert_eq!(delays, [100, 250, 400]);
+    assert!(red(&doc) > 0.9, "the first frame shows");
+    let mut first = doc.clone();
+    let mut p = Preferences::default();
+    p.file_handling.animated_avif = AnimatedOpen::FirstFrame;
+    apply_preferred(&p, "a.avif", &mut first, None).unwrap();
+    assert_eq!((first.layers.len(), first.frame_animation.is_none()), (1, true));
+}

@@ -3911,6 +3911,7 @@ navigator	Zoom	Zvětšení
 	“{name}” is an animated {format} with {frames} frames. Open it as:	„{name}“ je animovaný {format} s {frames} snímky. Otevřít jako:
 	Open animated GIF as	Animovaný GIF otevřít jako
 	Open animated WebP as	Animovaný WebP otevřít jako
+	Open animated AVIF as	Animovaný AVIF otevřít jako
 
 # DDS Options (#1327)
 	DDS Options	Možnosti DDS

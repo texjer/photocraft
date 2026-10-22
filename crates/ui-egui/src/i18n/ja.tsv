@@ -3977,6 +3977,7 @@ curves	Smooth	スムーズ
 	“{name}” is an animated {format} with {frames} frames. Open it as:	「{name}」は {frames} フレームのアニメーション {format} です。開く方法：
 	Open animated GIF as	アニメーション GIF を開く方法
 	Open animated WebP as	アニメーション WebP を開く方法
+	Open animated AVIF as	アニメーション AVIF を開く方法
 
 # DDS Options (#1327)
 	DDS Options	DDS オプション

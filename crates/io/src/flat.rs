@@ -21,8 +21,8 @@ pub fn import_flat(name: &str, bytes: &[u8]) -> Result<ImportResult, IoError> {
     if format == Some(Format::Tiff) {
         return import_tiff_page(name, bytes, None);
     }
-    // An animated GIF or WebP opens with every frame as its own layer, to edit by hand.
-    if matches!(format, Some(Format::Gif | Format::WebP))
+    // An animated GIF, WebP or AVIF opens with every frame as its own layer, to edit by hand.
+    if matches!(format, Some(Format::Gif | Format::WebP | Format::Avif))
         && let Some(r) = import_animation_layers(name, bytes)?
     {
         return Ok(r);
@@ -215,11 +215,17 @@ fn gif_loop_count(bytes: &[u8]) -> photocraft_doc::LoopCount {
     scan(bytes).unwrap_or(LoopCount::Once)
 }
 
-/// Every frame of a GIF or WebP as a single-layer document, handed to `each` in order with its delay in
-/// milliseconds (a still image has one). One frame at a time becomes a document, so the caller
-/// can flatten and drop it. Returns the number of frames; stops at the first error `each` gives.
+/// Every frame of a GIF, WebP or AVIF as a single-layer document, handed to `each` in order with
+/// its delay in milliseconds (a still image has one). One frame at a time becomes a document, so
+/// the caller can flatten and drop it. Returns the number of frames; stops at the first error
+/// `each` gives.
 pub fn import_animation_frames(name: &str, bytes: &[u8], each: &mut dyn FnMut(Document, u32) -> Result<(), IoError>) -> Result<usize, IoError> {
-    let frames = codecs::decode_frames(bytes, &codecs::DecodeOptions::default()).ok_or(codecs::CodecError::UnknownFormat)??;
+    let Some(frames) = codecs::decode_frames(bytes, &codecs::DecodeOptions::default()) else {
+        // A still AVIF has no frames to walk: it is its own single frame.
+        each(import_flat(name, bytes)?.document, 0)?;
+        return Ok(1);
+    };
+    let frames = frames?;
     let n = frames.len();
     for f in frames {
         each(image_to_document(name, &f.image)?.document, f.delay_ms)?;

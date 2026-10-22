@@ -11,8 +11,9 @@ build = "build.rs"
 # Open HEIC/HEIF photos (the optional photocraft-heif crate). Not default so distributors choose
 # it; official builds (CI, packaging/, release) build with `--features heif`.
 heif = ["photocraft-codecs/heif"]
-# Write AVIF files (rav1e, pure Rust), as Save for Web offers. Not default: it adds build
-# time, and PhotoCraft can't open AVIF yet.
+# Open AVIF files, still or animated (rav1d, pure Rust), and write them (rav1e) as Save for Web
+# offers. Not default: it adds build time, and rav1d is pinned to a git revision until it
+# releases its Rust API.
 avif = ["photocraft-codecs/avif"]
 
 [lints]

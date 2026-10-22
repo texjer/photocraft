@@ -4028,6 +4028,7 @@ cameraData	Lens	Lens
 	“{name}” is an animated {format} with {frames} frames. Open it as:	“{name}”, {frames} kareli animasyonlu bir {format}. Şu şekilde aç:
 	Open animated GIF as	Animasyonlu GIF'i şu şekilde aç
 	Open animated WebP as	Animasyonlu WebP'yi şu şekilde aç
+	Open animated AVIF as	Animasyonlu AVIF'yi şu şekilde aç
 
 # DDS Options (#1327)
 	DDS Options	DDS Seçenekleri

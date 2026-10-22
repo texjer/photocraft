@@ -4060,6 +4060,7 @@ curves	Smooth	Vloeiend maken
 	“{name}” is an animated {format} with {frames} frames. Open it as:	‘{name}’ is een geanimeerde {format} met {frames} frames. Openen als:
 	Open animated GIF as	Geanimeerde GIF openen als
 	Open animated WebP as	Geanimeerde WebP openen als
+	Open animated AVIF as	Geanimeerde AVIF openen als
 
 # DDS Options (#1327)
 	DDS Options	DDS-opties

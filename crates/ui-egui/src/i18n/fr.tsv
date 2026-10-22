@@ -3310,6 +3310,7 @@ curves	Smooth	Lisser
 	“{name}” is an animated {format} with {frames} frames. Open it as:	« {name} » est un {format} animé de {frames} images. L’ouvrir comme :
 	Open animated GIF as	Ouvrir un GIF animé comme
 	Open animated WebP as	Ouvrir un WebP animé comme
+	Open animated AVIF as	Ouvrir un AVIF animé comme
 
 # DDS Options (#1327)
 	DDS Options	Options DDS

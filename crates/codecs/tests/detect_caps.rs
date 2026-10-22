@@ -67,10 +67,15 @@ fn default_build_formats_all_symmetric() {
 }
 
 #[test]
-fn avif_never_readable() {
-    assert!(!caps(Format::Avif).read);
+fn avif_reads_and_writes_only_with_the_feature() {
+    assert_eq!(caps(Format::Avif).read, cfg!(feature = "avif"));
     assert_eq!(caps(Format::Avif).write, cfg!(feature = "avif"));
-    assert!(matches!(decode_as(Format::Avif, b"\0\0\0\x1cftypavif"), Err(CodecError::Unsupported { .. })));
+    let header = decode_as(Format::Avif, b"\0\0\0\x1cftypavif");
+    if cfg!(feature = "avif") {
+        assert!(matches!(header, Err(CodecError::Malformed { .. })), "{header:?}");
+    } else {
+        assert!(matches!(header, Err(CodecError::Unsupported { .. })), "{header:?}");
+    }
 }
 
 #[test]

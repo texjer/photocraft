@@ -4262,6 +4262,7 @@ navigator	Zoom	Zoom
 	“{name}” is an animated {format} with {frames} frames. Open it as:	«{name}» es un {format} animado con {frames} fotogramas. Abrirlo como:
 	Open animated GIF as	Abrir GIF animado como
 	Open animated WebP as	Abrir WebP animado como
+	Open animated AVIF as	Abrir AVIF animado como
 
 # DDS Options (#1327)
 	DDS Options	Opciones de DDS

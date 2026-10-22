@@ -26,7 +26,7 @@ pub enum Format {
     OpenExr,
     /// Radiance RGBE.
     Hdr,
-    /// Encode-only behind the `avif` feature; see [`ASYMMETRIC_EXCEPTIONS`].
+    /// AVIF: read (stills and animated sequences) and written behind the `avif` feature.
     Avif,
     /// HEIF/HEIC (HEVC-coded): read-only; see [`ASYMMETRIC_EXCEPTIONS`].
     Heif,
@@ -71,11 +71,6 @@ pub const ASYMMETRIC_EXCEPTIONS: &[(Format, &str)] = &[
     (
         Format::Pcx,
         "PCX is supported for opening legacy paint and clipart assets. New files should use PNG; writing obsolete indexed and planar variants is intentionally not provided.",
-    ),
-    (
-        Format::Avif,
-        "AVIF encode uses ravif (pure Rust) but decoding requires dav1d (C); read stays unsupported \
-         until a pure-Rust AV1 decoder is viable. Only enabled with the non-default `avif` feature.",
     ),
     (
         Format::Cineon,
@@ -257,7 +252,7 @@ pub fn caps(format: Format) -> FormatCaps {
         Format::Qoi => base,
         Format::OpenExr => FormatCaps { depths: &[S::F16, S::F32], layouts: RGB_GRAY, ..base },
         Format::Hdr => FormatCaps { depths: &[S::F32], layouts: &[L::Rgb], alpha: false, lossy: true, ..base },
-        Format::Avif => FormatCaps { read: false, write: cfg!(feature = "avif"), lossy: true, ..base },
+        Format::Avif => FormatCaps { read: cfg!(feature = "avif"), write: cfg!(feature = "avif"), lossy: true, ..base },
         Format::Heif => {
             FormatCaps { read: cfg!(feature = "heif"), write: false, depths: &[S::U8, S::U16], icc: true, exif: true, xmp: true, lossy: true, ..base }
         }

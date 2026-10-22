@@ -1,4 +1,4 @@
-//! How an animated GIF or WebP opens (Preferences › File Handling, or the prompt File › Open
+//! How an animated GIF, WebP or AVIF opens (Preferences › File Handling, or the prompt File › Open
 //! shows when they say Ask). The file reads as a frame animation, a layer per frame
 //! (`photocraft_io`'s flat import), and the choice reshapes that document before it opens: kept
 //! as frames, turned into one video layer on the timeline, or cut to its first frame.
@@ -16,6 +16,7 @@ pub fn pref_key(name: &str) -> Option<&'static str> {
     match ext.as_str() {
         "gif" => Some("animatedGif"),
         "webp" => Some("animatedWebp"),
+        "avif" => Some("animatedAvif"),
         _ => None,
     }
 }
@@ -24,6 +25,7 @@ pub fn pref_key(name: &str) -> Option<&'static str> {
 fn preferred(prefs: &Preferences, name: &str) -> Option<AnimatedOpen> {
     Some(match pref_key(name)? {
         "animatedGif" => prefs.file_handling.animated_gif,
+        "animatedAvif" => prefs.file_handling.animated_avif,
         _ => prefs.file_handling.animated_webp,
     })
 }
@@ -40,7 +42,11 @@ pub fn question(prefs: &Preferences, name: &str, doc: &Document) -> Option<Value
         return None;
     }
     let key = pref_key(name)?;
-    let format = if key == "animatedGif" { "GIF" } else { "WebP" };
+    let format = match key {
+        "animatedGif" => "GIF",
+        "animatedAvif" => "AVIF",
+        _ => "WebP",
+    };
     let frames = doc.frame_animation.as_ref().map_or(0, |a| a.frames.len());
     Some(json!({"format": format, "key": key, "frames": frames}))
 }

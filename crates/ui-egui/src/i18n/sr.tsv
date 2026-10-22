@@ -4371,6 +4371,7 @@ shape	Appearance	Izgled
 	“{name}” is an animated {format} with {frames} frames. Open it as:	„{name}“ je animirani {format} sa {frames} kadrova. Otvori kao:
 	Open animated GIF as	Animirani GIF otvori kao
 	Open animated WebP as	Animirani WebP otvori kao
+	Open animated AVIF as	Animirani AVIF otvori kao
 
 # DDS Options (#1327)
 	DDS Options	DDS opcije

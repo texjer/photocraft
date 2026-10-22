@@ -4,7 +4,7 @@
 //! that file and opens it, then asks about the next; Cancel opens neither it nor the files still
 //! to come. Files that finish reading while a prompt is up wait their turn, so they open in order.
 //!
-//! An animated GIF or WebP whose File Handling preference says Ask is held the same way, and its
+//! An animated GIF, WebP or AVIF whose File Handling preference says Ask is held the same way, and its
 //! prompt comes first: open it as a frame animation, a video layer or its first frame
 //! ([`photocraft_engine::animated_open`]), optionally remembered for that format.
 

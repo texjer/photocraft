@@ -4090,6 +4090,7 @@ layerLabel	No Color	Sem cor
 	“{name}” is an animated {format} with {frames} frames. Open it as:	“{name}” é um {format} animado com {frames} quadros. Abrir como:
 	Open animated GIF as	Abrir GIF animado como
 	Open animated WebP as	Abrir WebP animado como
+	Open animated AVIF as	Abrir AVIF animado como
 
 # DDS Options (#1327)
 	DDS Options	Opções de DDS

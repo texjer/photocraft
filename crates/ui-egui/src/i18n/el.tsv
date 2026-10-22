@@ -4000,6 +4000,7 @@ curves	Smooth	Εξομάλυνση
 	“{name}” is an animated {format} with {frames} frames. Open it as:	Το «{name}» είναι κινούμενο {format} με {frames} καρέ. Άνοιγμα ως:
 	Open animated GIF as	Άνοιγμα κινούμενου GIF ως
 	Open animated WebP as	Άνοιγμα κινούμενου WebP ως
+	Open animated AVIF as	Άνοιγμα κινούμενου AVIF ως
 
 # DDS Options (#1327)
 	DDS Options	Επιλογές DDS
