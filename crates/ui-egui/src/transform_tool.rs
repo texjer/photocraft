@@ -2895,21 +2895,26 @@ fn transform_fields(app: &mut PhotocraftApp, ui: &mut egui::Ui, t: &TransformSes
     let lbl = |ui: &mut egui::Ui, s: &str| {
         ui.label(egui::RichText::new(s).color(tk.text_dim).size(12.0));
     };
+    // Photoshop's scrubby labels: dragging one moves the field after it.
+    let scrub_lbl = |ui: &mut egui::Ui, s: &str| {
+        let label = ui.add(egui::Label::new(egui::RichText::new(s).color(tk.text_dim).size(12.0)).selectable(false));
+        crate::widgets::scrub_option_label(ui, &label);
+    };
     position_size_fields(app, ui, t);
     crate::widgets::vline(ui, 22.0);
     let mut a = angle as f32;
     let (r, resp) = ui.allocate_exact_size(vec2(18.0, 22.0), egui::Sense::hover());
     crate::icons::paint(ui, r, "rotate-cw", 13.0, tk.text_dim);
-    resp.on_hover_text(tl!("Rotate"));
+    crate::widgets::scrub_option_label(ui, &resp.on_hover_text(tl!("Rotate")));
     if crate::widgets::value_field(ui, &mut a, -180.0..=180.0, "°", 60.0).changed() {
         rotate_about_pivot(app, (a as f64 - angle).to_radians());
     }
     // Photoshop's H and V skew fields: the box's sides lean by H, its top and bottom by V.
     let (mut h, mut v) = (skew_h as f32, t.skew_v as f32);
     let lim = -SKEW_LIMIT_DEG..=SKEW_LIMIT_DEG;
-    lbl(ui, "H:");
+    scrub_lbl(ui, "H:");
     let rh = crate::widgets::value_field(ui, &mut h, lim.clone(), "°", 56.0).on_hover_text(tl!("Set horizontal skew"));
-    lbl(ui, "V:");
+    scrub_lbl(ui, "V:");
     let rv = crate::widgets::value_field(ui, &mut v, lim, "°", 56.0).on_hover_text(tl!("Set vertical skew"));
     if rh.changed() || rv.changed() {
         skew_about_pivot(app, f64::from(h), f64::from(v));
@@ -2964,8 +2969,10 @@ fn anchor_grid_widget(ui: &mut egui::Ui, current_anchor: Option<usize>) -> Optio
 pub(crate) fn position_size_fields(app: &mut PhotocraftApp, ui: &mut egui::Ui, t: &TransformSession) {
     let tk = crate::theme::Tokens::get(ui.ctx());
     let (sx, sy, _, _) = readout(t);
+    // Photoshop's scrubby labels: dragging one moves the field after it.
     let lbl = |ui: &mut egui::Ui, s: &str| {
-        ui.label(egui::RichText::new(s).color(tk.text_dim).size(12.0));
+        let label = ui.add(egui::Label::new(egui::RichText::new(s).color(tk.text_dim).size(12.0)).selectable(false));
+        crate::widgets::scrub_option_label(ui, &label);
     };
     let current_anchor = matching_anchor(t.quad, t.pivot);
     let mut pivot = t.pivot;
@@ -3545,6 +3552,40 @@ mod tests {
         // A skew past ±90° would flatten the box: the field stops at the limit.
         let t = type_into_bar_field(5, "120");
         assert!(eq6(readout(&t).3, f64::from(SKEW_LIMIT_DEG)), "{}", readout(&t).3);
+    }
+
+    /// The bar's labels scrub the field after them, as in Photoshop: X moves the box, W scales
+    /// it, the rotate icon turns it and V skews it.
+    #[test]
+    fn transform_bar_labels_scrub_their_fields() {
+        use egui_kittest::kittest::Queryable;
+        // A label by name, or (unnamed) the rotate icon just left of the angle field.
+        let drag = |label: &str, dx: f32| {
+            let mut h = bar_harness(|_| {});
+            let at = if label.is_empty() {
+                h.get_all_by_role(egui::accesskit::Role::SpinButton).nth(4).unwrap().rect().left_center() - vec2(16.0, 0.0)
+            } else {
+                h.get_by_label(label).rect().center()
+            };
+            h.hover_at(at);
+            h.run();
+            h.drag_at(at);
+            h.run();
+            for i in 1..=4 {
+                h.hover_at(at + vec2(dx * i as f32 / 4.0, 0.0));
+                h.run();
+            }
+            h.drop_at(at + vec2(dx, 0.0));
+            h.run_steps(2);
+            h.state().ui.transform.clone().unwrap()
+        };
+        let t = drag("X:", 10.0);
+        assert!(eq6(t.pivot[0], 60.0) && eq6(t.quad[0][0], 10.0), "{:?} {:?}", t.pivot, t.quad);
+        let (w, h, _, _) = readout(&drag("W:", 10.0));
+        assert!(eq6(w, 110.0) && eq6(h, 110.0), "linked: {w} {h}");
+        let angle = readout(&drag("", -15.0)).2;
+        assert!(eq6(angle, -15.0), "{angle}");
+        assert!(eq6(drag("V:", 12.0).skew_v, 12.0));
     }
 
     /// Types `text` + Enter into the `n`th numeric field of the transform bar (X, Y, W, H, angle…).
