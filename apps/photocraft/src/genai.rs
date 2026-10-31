@@ -159,7 +159,12 @@ impl GenerativeAi for CraftAi {
             .with_input(InputRole::Source, Payload::inline("image/png", request.source_png).map_err(failure)?)
             .with_input(InputRole::Mask, Payload::inline("image/png", request.mask_png).map_err(failure)?)
             .with_input(InputRole::Prompt, Payload::text(request.prompt));
-        let plan = self.client.plan(&self.role, req).map_err(failure)?;
+        let mut plan = self.client.plan(&self.role, req.clone()).map_err(failure)?;
+        // OpenAI picks its own quality unless told, and fills came back soft; other adapters
+        // refuse params they don't know, so this is asked only of OpenAI.
+        if plan.provider() == "openai" {
+            plan = self.client.plan(&self.role, req.with_param("quality", serde_json::json!("high"))).map_err(failure)?;
+        }
         let d = plan.disclosure();
         let disclosure = Disclosure {
             destination: d.destination.clone(),

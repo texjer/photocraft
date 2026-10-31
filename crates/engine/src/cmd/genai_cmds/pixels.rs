@@ -47,11 +47,13 @@ pub(super) fn request_shape(w: u32, h: u32) -> (u32, u32) {
 /// shape asked for ([`request_shape`]) so the result isn't stretched, inside the canvas.
 pub(super) fn context_area(selected: Rect, canvas: Rect, aspect: impl Fn(u32, u32) -> (u32, u32)) -> Rect {
     let side = selected.width().max(selected.height());
-    // Twice the selection's size on each side, so the model can read a pattern or trend that
-    // runs through it (a row of panels stepping down) and not just what touches its edge. Half
-    // the size was tried first: the model saw two panels of seven and carried the pattern under
-    // the selection straight up instead of continuing the row's curve.
-    let margin = side.saturating_mul(2).clamp(64, 2048) as i32;
+    // The selection's own size on each side, so the model can read a pattern or trend that runs
+    // through it (a row of panels stepping down) and not just what touches its edge. Half the
+    // size was tried first: the model saw two panels of seven and carried the pattern under the
+    // selection straight up instead of continuing the row's curve. Twice the size fixed that but
+    // left the selection a fifth of an area models return at about 1.2K, so a small selection
+    // came back as a few hundred blurry pixels.
+    let margin = side.clamp(64, 2048) as i32;
     let r = Rect::new(selected.x0 - margin, selected.y0 - margin, selected.x1.saturating_add(margin), selected.y1.saturating_add(margin)).intersect(&canvas);
     let (a, b) = aspect(r.width(), r.height());
     if a == 0 || b == 0 || r.is_empty() {

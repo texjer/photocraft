@@ -400,11 +400,11 @@ fn the_document_keeps_its_mode_and_depth() {
 fn the_context_area_grows_toward_a_common_shape_inside_the_canvas() {
     let canvas = Rect::from_xywh(0, 0, 1000, 600);
     let same = |w, h| (w, h);
-    // A 30² selection gets the 64 px minimum margin on every side, a 100² one twice its size.
+    // A 30² selection gets the 64 px minimum margin on every side, a 100² one its own size.
     assert_eq!(context_area(Rect::from_xywh(400, 200, 30, 30), canvas, same), Rect::new(336, 136, 494, 294));
-    assert_eq!(context_area(Rect::from_xywh(400, 200, 100, 100), canvas, same), Rect::new(200, 0, 700, 500));
+    assert_eq!(context_area(Rect::from_xywh(400, 200, 100, 100), canvas, same), Rect::new(300, 100, 600, 400));
     // At an edge the margin is cut off by the canvas.
-    assert_eq!(context_area(Rect::from_xywh(0, 0, 100, 100), canvas, same), Rect::new(0, 0, 300, 300));
+    assert_eq!(context_area(Rect::from_xywh(0, 0, 100, 100), canvas, same), Rect::new(0, 0, 200, 200));
     // A 16:9 shape widens the area around its centre.
     let r = context_area(Rect::from_xywh(400, 200, 30, 30), canvas, |_, _| (16, 9));
     assert_eq!(r.height(), 158);
