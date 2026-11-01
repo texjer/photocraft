@@ -210,22 +210,22 @@ egui_inspection = { git = "https://github.com/storytold/egui.git", rev = "6d518f
 winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457d84ee4975110bfda6797c44dc" }
 
 # App only (never push): build craft-ai from the local fork at
-# /Users/texjernigan/Dropbox/_Code/craft-ai-integrations (branch feat/gemini-fill: FLUX.1 Fill + Gemini).
+# /Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations (branch feat/gemini-fill: FLUX.1 Fill + Gemini).
 [patch."https://github.com/storytold/craft-ai-integrations"]
-craft-ai-artcraft = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-artcraft" }
-craft-ai-bfl = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-bfl" }
-craft-ai-client = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-client" }
-craft-ai-comfy-env = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-comfy-env" }
-craft-ai-comfyui = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-comfyui" }
-craft-ai-core = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-core" }
-craft-ai-declarative = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-declarative" }
-craft-ai-engine = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-engine" }
-craft-ai-features = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-features" }
-craft-ai-gemini = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-gemini" }
-craft-ai-http = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-http" }
-craft-ai-media = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-media" }
-craft-ai-native = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-native" }
-craft-ai-openai = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-openai" }
-craft-ai-sam3 = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-sam3" }
-craft-ai-seedance = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-seedance" }
-craft-ai-vertex = { path = "/Users/texjernigan/Dropbox/_Code/craft-ai-integrations/crates/ai-vertex" }
+craft-ai-artcraft = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-artcraft" }
+craft-ai-bfl = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-bfl" }
+craft-ai-client = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-client" }
+craft-ai-comfy-env = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-comfy-env" }
+craft-ai-comfyui = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-comfyui" }
+craft-ai-core = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-core" }
+craft-ai-declarative = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-declarative" }
+craft-ai-engine = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-engine" }
+craft-ai-features = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-features" }
+craft-ai-gemini = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-gemini" }
+craft-ai-http = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-http" }
+craft-ai-media = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-media" }
+craft-ai-native = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-native" }
+craft-ai-openai = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-openai" }
+craft-ai-sam3 = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-sam3" }
+craft-ai-seedance = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-seedance" }
+craft-ai-vertex = { path = "/Users/texjernigan/Dropbox/_Code/artcraft/craft-ai-integrations/crates/ai-vertex" }
