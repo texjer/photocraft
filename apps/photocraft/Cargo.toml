@@ -118,10 +118,6 @@ xcap = "=0.9.8"
 winsafe = { version = "=0.0.29", default-features = false, features = ["user"] }
 
 # tests/mac_menu_appkit.rs: reads AppKit's menu bar back and sends it real key events.
-[dev-dependencies]
-# genai.rs tests: a temporary shared AI folder, never the person's real settings.
-tempfile = "3"
-
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSString"] }
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSApplication", "NSEvent", "NSGraphicsContext", "NSMenu", "NSMenuItem", "NSResponder"] }
