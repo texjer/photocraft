@@ -288,7 +288,13 @@ pub fn load(params: &mut CameraRaw, bytes: &[u8]) -> Result<LoadReport, String> 
             upright |= a.name() == "PerspectiveUpright" && upright_mode(a.value()).is_some();
             apply(&mut next, &mut report, a.name(), a.value());
         }
-        if let Some(value) = desc.attribute((PHOTOCRAFT_NS, GUIDES_ATTR)) {
+        // An attribute as PhotoCraft writes it, or a child element as another XMP tool may.
+        let written = desc.attribute((PHOTOCRAFT_NS, GUIDES_ATTR)).or_else(|| {
+            desc.children()
+                .find(|c| c.is_element() && c.tag_name().namespace() == Some(PHOTOCRAFT_NS) && c.tag_name().name() == GUIDES_ATTR)
+                .map(|c| c.text().unwrap_or(""))
+        });
+        if let Some(value) = written {
             match guides(value) {
                 Some(g) => {
                     next.upright_guides = g;
@@ -636,6 +642,23 @@ mod tests {
         let r = load(&mut p, xmp).unwrap();
         assert_eq!(p, before);
         assert_eq!(r.ignored, vec!["Contrast2012".to_string(), "ToneCurvePV2012".to_string()]);
+    }
+
+    /// `photocraft:UprightGuides` as a child element, which another XMP tool may write it as, reads
+    /// like the attribute; bad text is reported as before.
+    #[test]
+    fn upright_guides_as_a_child_element_are_read() {
+        let xmp = |text: &str| {
+            format!(
+                "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" xmlns:photocraft=\"{PHOTOCRAFT_NS}\" crs:PerspectiveUpright=\"5\"><photocraft:{GUIDES_ATTR}>{text}</photocraft:{GUIDES_ATTR}></rdf:Description></rdf:RDF></x:xmpmeta>"
+            )
+        };
+        let mut p = CameraRaw::default();
+        load(&mut p, xmp("[[[0.25,0.5],[0.25,0.75]]]").as_bytes()).unwrap();
+        assert_eq!((p.upright.as_str(), p.upright_guides), ("guided", vec![[[0.25, 0.5], [0.25, 0.75]]]));
+        let mut p = CameraRaw::default();
+        let report = load(&mut p, xmp("not guides").as_bytes()).unwrap();
+        assert!(report.ignored.iter().any(|n| n == GUIDES_ATTR), "{report:?}");
     }
 
     #[test]
