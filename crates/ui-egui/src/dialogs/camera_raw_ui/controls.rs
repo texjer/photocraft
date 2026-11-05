@@ -224,15 +224,18 @@ fn guide_keys(d: &mut CameraRawDialog, ctx: &egui::Context) {
     if ctx.text_edit_focused() {
         return;
     }
-    // Shift exactly, since consume_key with no Shift would also take Shift+T.
-    let shift_t = ctx.input_mut(|i| i.modifiers.shift && !i.modifiers.command && !i.modifiers.alt && i.consume_key(egui::Modifiers::SHIFT, egui::Key::T));
+    // Shift exactly, read from the press itself: Shift may be up again by the end of the frame,
+    // and consume_key alone would also take Alt+Shift+T.
+    let shift_t = ctx.input_mut(|i| {
+        let pressed = i.events.iter().any(|e| {
+            matches!(e, egui::Event::Key { key: egui::Key::T, pressed: true, modifiers: m, .. } if m.shift && !m.alt && !m.ctrl && !m.command && !m.mac_cmd)
+        });
+        pressed && i.consume_key(egui::Modifiers::SHIFT, egui::Key::T)
+    });
     if shift_t {
         let was = d.params.clone();
         if crate::camera_raw_guides_ui::toggle(&mut d.guides, &mut d.params) {
-            let guided = std::mem::replace(&mut d.params, was);
-            remember_edit(d);
-            d.params = guided;
-            d.dirty = true;
+            remember_shortcut_edit(d, was);
         }
         if d.guides.active {
             d.guides.reveal = true;
@@ -243,12 +246,25 @@ fn guide_keys(d: &mut CameraRawDialog, ctx: &egui::Context) {
     if delete {
         let was = d.params.clone();
         if crate::camera_raw_guides_ui::delete_selected(&mut d.guides, &mut d.params) {
-            let edited = std::mem::replace(&mut d.params, was);
-            remember_edit(d);
-            d.params = edited;
-            d.dirty = true;
+            remember_shortcut_edit(d, was);
         }
     }
+}
+
+/// A shortcut changed the settings from `was`: its own undo step. A gesture the pointer is still
+/// holding ends here with a step of its own, so its release doesn't record `was` a second time.
+fn remember_shortcut_edit(d: &mut CameraRawDialog, was: CameraRaw) {
+    let edited = std::mem::replace(&mut d.params, was);
+    if let Some(origin) = d.edit_origin.take()
+        && origin != d.params
+    {
+        let was = std::mem::replace(&mut d.params, origin);
+        remember_edit(d);
+        d.params = was;
+    }
+    remember_edit(d);
+    d.params = edited;
+    d.dirty = true;
 }
 
 fn wheel(ui: &mut egui::Ui, dirty: &mut bool, title: &str, w: &mut Wheel) {
@@ -324,7 +340,9 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
     let main_focused = ctx.input(|i| i.viewport().focused.unwrap_or(false));
     if let Some(d) = app.camera_raw.as_mut() {
         if raise_camera_raw(d.main_focused, main_focused, scrim.inner.clicked() || scrim.inner.drag_started()) {
-            ctx.send_viewport_cmd_to(window, egui::ViewportCommand::Focus);
+            for command in raise_commands() {
+                ctx.send_viewport_cmd_to(window, command);
+            }
         }
         d.main_focused = main_focused;
     }
@@ -346,6 +364,12 @@ pub fn show(app: &mut PhotocraftApp, ctx: &egui::Context) {
 /// (it came forward over Camera Raw's) or is clicked.
 fn raise_camera_raw(was_focused: bool, focused: bool, clicked: bool) -> bool {
     (focused && !was_focused) || clicked
+}
+
+/// Brings Camera Raw's window to the front, restoring it first if it was minimized (a minimized
+/// window ignores Focus).
+fn raise_commands() -> [egui::ViewportCommand; 2] {
+    [egui::ViewportCommand::Minimized(false), egui::ViewportCommand::Focus]
 }
 
 impl CameraRawDialog {
@@ -381,6 +405,8 @@ fn draw(app: &mut PhotocraftApp, ctx: &egui::Context, own_window: bool) {
         if pointer && d.edit_origin.is_none() {
             d.edit_origin = Some(d.params.clone());
         }
+        // What this frame's controls start from, for an edit no pointer made (below).
+        let frame_start = d.params.clone();
         if let Some(display) = &current_display
             && display.key != d.display.key
         {
@@ -660,13 +686,15 @@ fn draw(app: &mut PhotocraftApp, ctx: &egui::Context, own_window: bool) {
         if fu.button(tl!("Load Settings…")).on_hover_text(tl!("Load settings from a Camera Raw .xmp file")).clicked() {
             action = Some("load");
         }
-        if !ctx.input(|i| i.pointer.primary_down())
-            && let Some(origin) = d.edit_origin.take()
-            && origin != d.params
-        {
-            let edited = std::mem::replace(&mut d.params, origin);
-            remember_edit(d);
-            d.params = edited;
+        // One undo step per finished edit: a pointer gesture from where it began, and an edit made
+        // without the pointer (a button from the keyboard or a screen reader) from this frame's start.
+        if !ctx.input(|i| i.pointer.primary_down()) {
+            let origin = d.edit_origin.take().unwrap_or(frame_start);
+            if origin != d.params {
+                let edited = std::mem::replace(&mut d.params, origin);
+                remember_edit(d);
+                d.params = edited;
+            }
         }
     });
     crate::camera_raw_scope_ui::persist(app, ctx);
@@ -719,5 +747,12 @@ mod tests {
         assert!(!raise_camera_raw(true, true, false), "only once, so Camera Raw's own focus isn't fought");
         assert!(!raise_camera_raw(true, false, false) && !raise_camera_raw(false, false, false));
         assert!(raise_camera_raw(true, true, true), "a click on the dimmed main window");
+    }
+
+    /// Focus does nothing for a minimized window, which would leave only the dimmed main window
+    /// that takes no input: Camera Raw's is restored first.
+    #[test]
+    fn raising_camera_raw_restores_it_when_minimized() {
+        assert_eq!(raise_commands(), [egui::ViewportCommand::Minimized(false), egui::ViewportCommand::Focus]);
     }
 }
