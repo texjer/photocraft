@@ -191,6 +191,36 @@ impl FrameAnimation {
         self.clamp();
     }
 
+    /// The layers `sources` have become the one layer `to` (a merge, a Smart Object): a frame hides
+    /// `to` only if it hid all of them, so it still shows what that frame showed. One source hands `to`
+    /// its opacities. Several were baked into `to`'s pixels, so theirs go, and `to` takes the opacity it
+    /// has now as its default on the next capture.
+    pub fn replace_layers(&mut self, sources: &[LayerId], to: LayerId) {
+        let renamed = |list: &[(LayerId, f32)]| -> Vec<(LayerId, f32)> {
+            let mut out: Vec<(LayerId, f32)> = match sources {
+                [only] => list.iter().map(|(l, o)| (if l == only { to } else { *l }, *o)).collect(),
+                _ => list.iter().filter(|(l, _)| !sources.contains(l)).copied().collect(),
+            };
+            out.sort_by_key(|(l, _)| *l);
+            out
+        };
+        for f in &mut self.frames {
+            let all_hidden = !sources.is_empty() && sources.iter().all(|id| f.hidden.binary_search(id).is_ok());
+            let names_a_source = sources.iter().any(|id| f.hidden.binary_search(id).is_ok() || f.opacity_of(*id).is_some());
+            if names_a_source {
+                let f = Arc::make_mut(f);
+                f.hidden.retain(|id| !sources.contains(id));
+                if all_hidden && let Err(at) = f.hidden.binary_search(&to) {
+                    f.hidden.insert(at, to);
+                }
+                f.opacities = renamed(&f.opacities);
+            }
+        }
+        if sources.iter().any(|id| self.default_opacity(*id).is_some()) {
+            self.defaults = Arc::new(renamed(&self.defaults));
+        }
+    }
+
     /// Records the visibility and opacity `layers` show as the selected frame's (an edit made while a
     /// frame is selected changes that frame only). A layer the animation doesn't know yet, such as one
     /// the edit just added, takes the opacity it has now as its default, so every other frame has it too.
@@ -331,7 +361,7 @@ mod tests {
     use photocraft_geom::Size;
 
     fn layer(name: &str, visible: bool) -> Layer {
-        let mut l = Layer::new(name, LayerContent::Group(Group { children: Vec::new(), expanded: true, artboard: None }));
+        let mut l = Layer::new(name, LayerContent::Group(Group { children: Vec::new(), expanded: true, artboard: None, frame_stroke: None }));
         l.visible = visible;
         l
     }

@@ -14,23 +14,18 @@ use photocraft_doc::{
 use photocraft_geom::{Affine, Size};
 use serde::{Deserialize, Serialize};
 
-/// Current manifest version written by this build.
-pub const FORMAT_VERSION: u32 = 1;
+pub use craft_pcraft_format::{FORMAT_VERSION, Hash, TileRef};
 
-/// Hex-encoded BLAKE3 hash (64 chars).
-pub type Hash = String;
+/// The manifest: craft-pcraft-format's envelope (`format_version`, `generator`, the optional
+/// `thumbnail` and `composite` previews) around the document [`DocM`]. A save with the full-size
+/// composite adds a `full_composite` member after the envelope; [`crate::read_full_composite`]
+/// reads it.
+pub type Manifest = craft_pcraft_format::Manifest<DocM>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Manifest {
-    pub format_version: u32,
-    /// Free-form writer identification, e.g. `photocraft-format 0.1.0`.
-    pub generator: String,
-    pub document: DocM,
-    /// Optional previews present in the bundle.
-    #[serde(default)]
-    pub thumbnail: Option<String>,
-    #[serde(default)]
-    pub composite: Option<String>,
+/// A damaged animation costs the frames, not the document: its pixels still open.
+fn lenient_frame_animation<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<photocraft_doc::FrameAnimation>, D::Error> {
+    let value = Option::<serde_json::Value>::deserialize(d)?;
+    Ok(value.and_then(|v| serde_json::from_value(v).ok()))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -88,7 +83,7 @@ pub struct DocM {
     #[serde(default)]
     pub timeline: Option<photocraft_doc::Timeline>,
     /// Window › Timeline in frame-animation mode.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "lenient_frame_animation")]
     pub frame_animation: Option<photocraft_doc::FrameAnimation>,
     /// The JPEG quality / WebP encoding File › Save reuses.
     #[serde(default, skip_serializing_if = "photocraft_doc::FileEncoding::is_empty")]
@@ -158,13 +153,6 @@ pub struct NamedPathM {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TileRef {
-    pub tx: i32,
-    pub ty: i32,
-    pub hash: Hash,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SurfaceM {
     pub format: PixelFormat,
     /// Default ("untouched") pixel as hex of its little-endian encoded bytes.
@@ -226,6 +214,8 @@ pub struct LayerM {
     pub effects: EffectsM,
     pub label: LabelColor,
     pub content: ContentM,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame: Option<photocraft_doc::Frame>,
     /// (4-char key as hex, blob)
     pub psd_blocks: Vec<(String, Hash)>,
     pub psd_id: Option<u32>,
@@ -262,6 +252,9 @@ pub enum ContentM {
         /// Artboard (Layer › New › Artboard).
         #[serde(default)]
         artboard: Option<photocraft_doc::Artboard>,
+        /// A Photoshop Frame's stroke, drawn along the group's vector mask.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        frame_stroke: Option<ShapeStroke>,
     },
     Adjustment {
         adjustment: Adjustment,
@@ -300,6 +293,10 @@ pub enum ContentM {
         stroke: Option<ShapeStroke>,
         #[serde(default)]
         live: Option<LiveShape>,
+        /// Arrow parameters stored separately for backward compatibility.
+        /// Older PhotoCraft versions ignore this optional field.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        arrow_live: Option<LiveShape>,
         /// The path's density as the fill's mask; older files have none (100 %).
         #[serde(default = "full_density")]
         density: f32,
@@ -312,6 +309,8 @@ pub enum ContentM {
         #[serde(default)]
         contents_id: Option<u64>,
         source: SmartSourceM,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        vector_preview: Option<VectorPreviewM>,
         transform: Affine,
         smart_filters: Vec<SmartFilter>,
         cache: Option<SurfaceM>,
@@ -328,6 +327,13 @@ pub enum ContentM {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         perspective: Option<[f64; 9]>,
     },
+}
+
+/// The native source remains separate from this optional display-only SVG blob.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VectorPreviewM {
+    pub source_hash: [u8; 32],
+    pub svg: Hash,
 }
 
 fn full_density() -> f32 {
@@ -386,6 +392,15 @@ pub struct MetadataM {
 #[cfg(test)]
 mod channel_tests {
     use super::*;
+
+    #[test]
+    fn a_damaged_frame_animation_is_dropped_and_a_valid_one_kept() {
+        for bad in [serde_json::json!({"frames": [], "current": -1}), serde_json::json!({"frames": [{"delay_ms": 0}], "current": 0})] {
+            assert_eq!(lenient_frame_animation(bad).unwrap(), None);
+        }
+        let good = serde_json::json!({"frames": [{"delay_ms": 10, "hidden": []}], "current": 0});
+        assert_eq!(lenient_frame_animation(good).unwrap().map(|a| a.frames.len()), Some(1));
+    }
 
     #[test]
     fn older_channels_load_with_default_options() {
