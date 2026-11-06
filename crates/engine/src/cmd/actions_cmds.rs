@@ -530,6 +530,7 @@ fn record(s: &mut Session, p: &Value) -> Result<Value> {
         s.actions.list.len() - 1
     };
     s.actions.recording = Some((s.journal.len(), idx));
+    crate::animation_cmds::record_navigation(s, "animation.selectFrame");
     s.actions.take = s.actions.take.wrapping_add(1);
     let name = s.actions.list.get(idx).map(|a| a.name.clone()).unwrap_or_default();
     Ok(json!({"action": name, "index": idx}))

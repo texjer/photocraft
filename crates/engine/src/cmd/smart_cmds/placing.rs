@@ -218,6 +218,9 @@ pub(super) fn convert(s: &mut Session, p: &Value) -> Result<Value> {
         for id in &ids {
             doc.remove(*id).ok_or(EngineError::NoLayer(*id))?;
         }
+        if let Some(animation) = &mut doc.frame_animation {
+            animation.replace_layers(&ids, new_id);
+        }
         if let [only] = ids[..] {
             retarget_layer_refs(doc, only, new_id);
         }

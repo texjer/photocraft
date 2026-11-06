@@ -22,6 +22,12 @@ pub use craft_pcraft_format::{FORMAT_VERSION, Hash, TileRef};
 /// reads it.
 pub type Manifest = craft_pcraft_format::Manifest<DocM>;
 
+/// A damaged animation costs the frames, not the document: its pixels still open.
+fn lenient_frame_animation<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<photocraft_doc::FrameAnimation>, D::Error> {
+    let value = Option::<serde_json::Value>::deserialize(d)?;
+    Ok(value.and_then(|v| serde_json::from_value(v).ok()))
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocM {
     pub id: u64,
@@ -77,7 +83,7 @@ pub struct DocM {
     #[serde(default)]
     pub timeline: Option<photocraft_doc::Timeline>,
     /// Window › Timeline in frame-animation mode.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "lenient_frame_animation")]
     pub frame_animation: Option<photocraft_doc::FrameAnimation>,
     /// The JPEG quality / WebP encoding File › Save reuses.
     #[serde(default, skip_serializing_if = "photocraft_doc::FileEncoding::is_empty")]
@@ -386,6 +392,15 @@ pub struct MetadataM {
 #[cfg(test)]
 mod channel_tests {
     use super::*;
+
+    #[test]
+    fn a_damaged_frame_animation_is_dropped_and_a_valid_one_kept() {
+        for bad in [serde_json::json!({"frames": [], "current": -1}), serde_json::json!({"frames": [{"delay_ms": 0}], "current": 0})] {
+            assert_eq!(lenient_frame_animation(bad).unwrap(), None);
+        }
+        let good = serde_json::json!({"frames": [{"delay_ms": 10, "hidden": []}], "current": 0});
+        assert_eq!(lenient_frame_animation(good).unwrap().map(|a| a.frames.len()), Some(1));
+    }
 
     #[test]
     fn older_channels_load_with_default_options() {

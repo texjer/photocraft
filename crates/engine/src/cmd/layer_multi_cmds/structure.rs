@@ -210,6 +210,9 @@ pub(super) fn merge_layers(s: &mut Session) -> Result<Value> {
                 doc.remove(*id);
             }
             *doc.layer_mut(top_id).ok_or(EngineError::NoLayer(top_id))? = merged;
+            if let Some(animation) = &mut doc.frame_animation {
+                animation.replace_layers(&ids, mid);
+            }
             *active = Some(mid);
             Ok(mid)
         }

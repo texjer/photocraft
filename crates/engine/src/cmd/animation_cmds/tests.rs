@@ -338,6 +338,7 @@ fn selecting_a_frame_waits_for_a_background_job_like_an_edit_does() {
     };
     let e = s.execute("animation.selectFrame", json!({"frame": 1})).unwrap_err().to_string();
     assert!(e.contains("still running"), "{e}");
+    assert!(s.disabled_reason("animation.nextFrame").is_some_and(|why| why.contains("still running")), "the menu says so too");
     assert_eq!(current(&s), 0);
     let t = std::time::Instant::now();
     while !s.poll_jobs().iter().any(|e| e.id == job) {
@@ -533,4 +534,76 @@ fn selecting_a_frame_reports_the_pixels_of_the_layers_that_change() {
     // Selecting the frame already shown changes nothing to redraw.
     s.execute("animation.selectFrame", json!({"frame": 2})).unwrap();
     assert!(s.active().unwrap().last_damage.is_some_and(|d| d.is_empty()), "{:?}", s.active().unwrap().last_damage);
+}
+
+/// Layers A, B and C with pixels, and frames 1 to 3 each showing one of them (frame 0 shows the Background).
+fn one_layer_per_frame() -> (Session, [LayerId; 3]) {
+    let mut s = session(&["A", "B", "C"]);
+    let ids = [id_of(&s, "A"), id_of(&s, "B"), id_of(&s, "C")];
+    for id in ids {
+        crate::layer_multi_cmds::reselect(&mut s, vec![id], Some(id));
+        s.execute("edit.fill", json!({"use": "black"})).unwrap();
+    }
+    s.execute("animation.makeFramesFromLayers", json!({})).unwrap();
+    (s, ids)
+}
+
+fn showing(s: &mut Session, frame: usize) -> Vec<String> {
+    s.execute("animation.selectFrame", json!({"frame": frame})).unwrap();
+    doc(s).layers.iter().filter(|l| l.visible).map(|l| l.name.clone()).collect()
+}
+
+#[test]
+fn image_duplicate_keeps_what_each_frame_shows() {
+    let (mut s, _) = one_layer_per_frame();
+    s.execute("image.duplicate", json!({})).unwrap();
+    assert_eq!(showing(&mut s, 1), ["A"]);
+    assert_eq!(showing(&mut s, 2), ["B"]);
+    assert_eq!(showing(&mut s, 3), ["C"]);
+}
+
+#[test]
+fn a_merged_only_duplicate_has_no_frames() {
+    let (mut s, _) = one_layer_per_frame();
+    s.execute("image.duplicate", json!({"mergedOnly": true})).unwrap();
+    assert!(doc(&s).frame_animation.is_none());
+}
+
+#[test]
+fn convert_to_smart_object_keeps_the_other_frames_hiding_it() {
+    let (mut s, [a, _, _]) = one_layer_per_frame();
+    s.execute("animation.selectFrame", json!({"frame": 1})).unwrap();
+    crate::layer_multi_cmds::reselect(&mut s, vec![a], Some(a));
+    s.execute("layer.smartObjects.convertToSmartObject", json!({})).unwrap();
+    assert_eq!(showing(&mut s, 1), ["A"]);
+    assert_eq!(showing(&mut s, 2), ["B"]);
+    assert_eq!(showing(&mut s, 3), ["C"]);
+}
+
+#[test]
+fn merge_layers_shows_only_in_frames_that_showed_a_source() {
+    let (mut s, [_, b, c]) = one_layer_per_frame();
+    s.execute("animation.selectFrame", json!({"frame": 2})).unwrap();
+    crate::layer_multi_cmds::reselect(&mut s, vec![b, c], Some(c));
+    s.execute("layer.mergeLayers", json!({})).unwrap();
+    assert_eq!(showing(&mut s, 1), ["A"], "this frame hid both sources");
+    assert_eq!(showing(&mut s, 2), ["C"], "the merged layer takes the top one's name");
+    assert_eq!(showing(&mut s, 3), ["C"], "this frame showed one of them");
+}
+
+#[test]
+fn recording_started_on_a_frame_replays_on_that_frame() {
+    let mut s = session(&["A"]);
+    s.execute("animation.create", json!({})).unwrap();
+    s.execute("animation.newFrame", json!({})).unwrap();
+    let a = id_of(&s, "A");
+    s.execute("actions.record", json!({"name": "Hide here"})).unwrap();
+    s.execute("layer.hideLayers", json!({"layer": a.0})).unwrap();
+    s.execute("actions.stop", json!({})).unwrap();
+    s.execute("edit.undo", json!({})).unwrap();
+    s.execute("animation.selectFrame", json!({"frame": 0})).unwrap();
+    s.execute("actions.play", json!({"action": "Hide here"})).unwrap();
+    assert_eq!(current(&s), 1);
+    let frames = &doc(&s).frame_animation.as_ref().unwrap().frames;
+    assert!(frames[1].hidden.contains(&a) && !frames[0].hidden.contains(&a));
 }

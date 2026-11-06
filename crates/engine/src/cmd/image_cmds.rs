@@ -132,6 +132,9 @@ pub(crate) fn reidentify_copied_layers(doc: &mut Document) {
             slice.layer = Some(new_id);
         }
     }
+    if let Some(animation) = &mut doc.frame_animation {
+        animation.remap_layers(|layer| ids.get(&layer).copied());
+    }
 }
 
 /// Scale every size and distance of a style by `k` (Image Size's Scale Styles, Layer Style ›
@@ -1170,6 +1173,8 @@ fn duplicate(s: &mut Session, p: &Value) -> Result<Value> {
         // Likewise, variables drove template layers that no longer exist: drop the whole
         // binding set (defs, data sets and the active index) on the flattened copy.
         doc.variables = photocraft_doc::Variables::default();
+        // And frames only say which of the original layers show: all of them would look the same.
+        doc.frame_animation = None;
     }
     reidentify_copied_layers(&mut doc);
     let name = doc.name.clone();

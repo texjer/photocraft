@@ -1670,7 +1670,8 @@ impl Session {
 
     /// Why command `id` can't run now because of a background job (None = no conflict).
     pub(crate) fn job_conflict(&self, id: &str, journal: bool) -> Option<String> {
-        if !journal || independent_of_document(id) {
+        // Frame navigation is no history step, but it changes what the layers show.
+        if !(journal || crate::animation_cmds::is_navigation(id)) || independent_of_document(id) {
             return None;
         }
         let job = self.active_job()?;

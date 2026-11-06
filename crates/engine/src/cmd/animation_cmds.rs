@@ -84,10 +84,15 @@ fn navigate(s: &mut Session, id: &str, f: impl FnOnce(&mut Document) -> Result<(
     Ok(json!({"animation": {"current": a.map_or(0, |a| a.current), "frameCount": a.map_or(0, |a| a.frames.len())}}))
 }
 
+/// A command that moves between frames: no history step, but it changes what the layers show.
+pub(crate) fn is_navigation(id: &str) -> bool {
+    matches!(id, "animation.selectFrame" | "animation.nextFrame" | "animation.previousFrame")
+}
+
 /// While an action is recorded, note the frame a navigation command selected as an absolute
 /// `animation.selectFrame`; one step stands for a run of them (a click, then Next, then Next).
 pub(crate) fn record_navigation(s: &mut Session, id: &str) {
-    if !matches!(id, "animation.selectFrame" | "animation.nextFrame" | "animation.previousFrame") {
+    if !is_navigation(id) {
         return;
     }
     let Some(current) = s.active().and_then(|st| st.doc.frame_animation.as_ref()).map(|a| a.current) else { return };
