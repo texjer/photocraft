@@ -116,6 +116,21 @@ impl FrameAnimation {
         self.clamp();
     }
 
+    /// The layers `sources` have become the one layer `to` (a merge, a Smart Object): a frame hides
+    /// `to` only if it hid all of them, so it still shows what that frame showed.
+    pub fn replace_layers(&mut self, sources: &[LayerId], to: LayerId) {
+        for f in &mut self.frames {
+            let all_hidden = !sources.is_empty() && sources.iter().all(|id| f.hidden.binary_search(id).is_ok());
+            if all_hidden || sources.iter().any(|id| f.hidden.binary_search(id).is_ok()) {
+                let f = Arc::make_mut(f);
+                f.hidden.retain(|id| !sources.contains(id));
+                if all_hidden && let Err(at) = f.hidden.binary_search(&to) {
+                    f.hidden.insert(at, to);
+                }
+            }
+        }
+    }
+
     /// Records the visibility `layers` show as the selected frame's (an edit made while a frame is
     /// selected changes that frame only).
     pub fn capture(&mut self, layers: &[Layer]) {
@@ -215,7 +230,7 @@ mod tests {
     use photocraft_geom::Size;
 
     fn layer(name: &str, visible: bool) -> Layer {
-        let mut l = Layer::new(name, LayerContent::Group(Group { children: Vec::new(), expanded: true, artboard: None }));
+        let mut l = Layer::new(name, LayerContent::Group(Group { children: Vec::new(), expanded: true, artboard: None, frame_stroke: None }));
         l.visible = visible;
         l
     }
