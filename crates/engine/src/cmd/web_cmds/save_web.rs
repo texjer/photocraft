@@ -1,7 +1,9 @@
 use super::assets::{asset_output_path, asset_path_components};
 use super::optimizer::{Optimized, optimize, optimize_frame, web_document, web_exif, web_warnings, web_xmp};
 use super::settings::{WebFormat, WebSettings, rgb_hex};
-use super::{Document, EngineError, Rect, ResolvedSlice, Result, Session, SliceKind, Value, bad, join, json, other, portable_device_name, slices, stem, write_file};
+use super::{
+    Document, EngineError, Rect, ResolvedSlice, Result, Session, SliceKind, Value, bad, join, json, other, portable_device_name, slices, stem, write_file,
+};
 
 /// A file-name-safe slice name.
 fn slice_file(name: &str) -> String {
