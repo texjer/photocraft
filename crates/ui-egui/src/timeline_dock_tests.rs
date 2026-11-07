@@ -636,7 +636,7 @@ fn the_tween_menu_adds_frames_between_two() {
 #[test]
 fn the_options_menu_turns_the_tween_menu_on() {
     let mut h = harness();
-    h.get_by_label("Options").click();
+    click_timeline_options(&h);
     h.run_steps(4);
     h.query_all_by_label_contains("Tween").next().expect("the checkbox").click();
     h.run_steps(4);
