@@ -554,11 +554,18 @@ fn onion_skin_settings_survive_the_saved_ui_state() {
     assert!(!old.onion.enabled, "state saved before onion skin existed still loads");
 }
 
+/// Clicks the Timeline's Options (…) button: the lowest one labelled "Options", as the Timeline is
+/// docked under the canvas and the Move tool's options bar has an Options gear of its own.
+fn click_timeline_options(h: &Harness<'static, PhotocraftApp>) {
+    let button = h.query_all_by_label("Options").max_by(|a, b| a.rect().center().y.total_cmp(&b.rect().center().y));
+    button.expect("the Timeline's Options button").click();
+}
+
 #[test]
 fn onion_skin_is_off_the_bar_until_the_options_menu_turns_it_on() {
     let mut h = harness();
     assert!(h.query_all_by_label_contains("Onion Skin").next().is_none(), "not shown by default");
-    h.get_by_label("Options").click();
+    click_timeline_options(&h);
     h.run_steps(4);
     h.query_all_by_label_contains("Onion Skin").next().expect("the checkbox").click();
     h.run_steps(4);
